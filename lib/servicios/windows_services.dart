@@ -25,34 +25,6 @@ class WindowsServices {
     } catch (_) {}
   }
 
-  static (int, int) getCursorPosition() {
-    final point = calloc<POINT>();
-    try {
-      final ok = GetCursorPos(point);
-      if (ok != 0) return (point.ref.x, point.ref.y);
-      return (0, 0);
-    } finally {
-      free(point);
-    }
-  }
-
-  static void lockCursor(int x, int y, int width, int height) {
-    final rect = calloc<RECT>();
-    try {
-      rect.ref.left = x;
-      rect.ref.top = y;
-      rect.ref.right = x + width;
-      rect.ref.bottom = y + height;
-      ClipCursor(rect);
-    } finally {
-      free(rect);
-    }
-  }
-
-  static void unlockCursor() {
-    ClipCursor(nullptr);
-  }
-
   static int getScreenWidth() => GetSystemMetrics(SM_CXSCREEN);
   static int getScreenHeight() => GetSystemMetrics(SM_CYSCREEN);
 
@@ -135,6 +107,5 @@ class WindowsServices {
 
   static void cleanup() {
     setAvoidSleep(false);
-    unlockCursor();
   }
 }

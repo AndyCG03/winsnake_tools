@@ -12,7 +12,7 @@ import 'bichito_painter.dart';
 import 'servicios/windows_services.dart';
 
 const double _bugW = 290.0;
-const double _bugH = 170.0;
+const double _refH = 194.0; // altura de referencia (img 4) para alinear al pie
 const double _menuW = 330.0;
 const double _menuH = 420.0;
 
@@ -48,13 +48,20 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   double _screenHeight = 1080;
   double _velocidad = 0.8;
   double _opacidadGlobal = 1.0;
-  double _tamano = 1.0;
+  double _tamano = 0.5;
   bool _evitarSuspension = false;
-  bool _bloquearCursor = false;
   bool _detenidoPorMouse = false;
-  bool _arrastrando = false;
-  Offset? _pointerDownPos;
-  bool _dragActivo = false;
+  bool _girando = false;
+  int _lastTurnMs = 0;
+  static const Map<String, Size> _imageSizes = {
+    'assets/img/1.png': Size(291, 139),
+    'assets/img/2.png': Size(337, 139),
+    'assets/img/3.png': Size(306, 139),
+    'assets/img/4.png': Size(261, 194),
+    'assets/img/5.png': Size(239, 268),
+    'assets/img/6.png': Size(279, 169),
+  };
+  Size get _curImgSize => _imageSizes[_imagenActual]!;
 
   @override
   void initState() {
@@ -98,7 +105,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
       }
     } catch (_) {}
     _posX = _screenLeft + _screenWidth * 0.7;
-    _posY = _screenTop + _screenHeight - 100;
+    _posY = _screenTop + _screenHeight;
     _mirandoIzq = true;
     await _actualizarPosicionVentana();
     WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarCaminata());
@@ -110,16 +117,14 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     _opacidadGlobal = cfg.opacidad;
     _tamano = cfg.tamano;
     _evitarSuspension = cfg.evitarSuspension;
-    _bloquearCursor = cfg.bloquearCursor;
     if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
-    if (_bloquearCursor) _aplicarBloqueoCursor();
   }
 
   void _iniciarCaminata() {
     _walkTimer?.cancel();
     final interval = (20 / _velocidad.clamp(0.3, 5.0)).round();
     _walkTimer = Timer.periodic(Duration(milliseconds: interval), (_) {
-      if (_menuAbierto || _estado != BichitoEstado.caminando || _arrastrando || _detenidoPorMouse) return;
+      if (_menuAbierto || _estado != BichitoEstado.caminando || _detenidoPorMouse) return;
       _moverBichito();
     });
   }
@@ -136,7 +141,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   void _iniciarAccionesEspontaneas() {
     _spontaneousTimer?.cancel();
     _spontaneousTimer = Timer.periodic(const Duration(seconds: 6), (_) {
-      if (_menuAbierto || _estado != BichitoEstado.caminando || !mounted) return;
+      if (_menuAbierto || _girando || _estado != BichitoEstado.caminando || !mounted) return;
       final rng = Random().nextInt(100);
       if (rng < 5) {
         setState(() => _expresion = Expresion.esperando);
@@ -158,11 +163,41 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   }
 
   void _moverBichito() {
-    if (_detenidoPorMouse) return;
+    if (_detenidoPorMouse || _girando) return;
     final paso = _velocidad;
     double nuevaX = _posX + (_mirandoIzq ? -paso : paso);
     final leftBound = _screenLeft + _bugW / 2;
     final rightBound = _screenLeft + _screenWidth - _bugW / 2;
+
+    // Mostrar 6.png ANTES de llegar a la esquina (sprite de anticipo de giro)
+    final margen = paso * 6;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_mirandoIzq && _posX - leftBound < margen && now - _lastTurnMs > 800) {
+      _walkTimer?.cancel();
+      _walkTimer = null;
+      _lastTurnMs = now;
+      setState(() => _girando = true);
+      _actualizarPosicionVentana();
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (!mounted) return;
+        setState(() => _girando = false);
+        if (!_detenidoPorMouse && !_menuAbierto) _iniciarCaminata();
+      });
+      return;
+    }
+    if (!_mirandoIzq && rightBound - _posX < margen && now - _lastTurnMs > 800) {
+      _walkTimer?.cancel();
+      _walkTimer = null;
+      _lastTurnMs = now;
+      setState(() => _girando = true);
+      _actualizarPosicionVentana();
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (!mounted) return;
+        setState(() => _girando = false);
+        if (!_detenidoPorMouse && !_menuAbierto) _iniciarCaminata();
+      });
+      return;
+    }
 
     if (nuevaX <= leftBound) {
       nuevaX = leftBound;
@@ -177,15 +212,15 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   Future<void> _actualizarPosicionVentana() async {
     try {
-      final bugScaledW = _bugW * _tamano;
-      final bugScaledH = _bugH * _tamano;
+      final s = _curImgSize;
+      final scale = 0.85 * _tamano;
+      final scaledW = s.width * scale;
+      final scaledH = _menuAbierto ? s.height * scale : _refH * scale;
       if (_menuAbierto) {
-        final totalH = _menuH + bugScaledH;
-        await windowManager.setSize(Size(_menuW, totalH));
-        await windowManager.setPosition(Offset(_posX - _menuW / 2, _posY - totalH));
+        final totalH = _menuH + scaledH;
+        await windowManager.setBounds(Rect.fromLTWH(_posX - _menuW / 2, _posY - totalH, _menuW, totalH));
       } else {
-        await windowManager.setSize(Size(bugScaledW, bugScaledH));
-        await windowManager.setPosition(Offset(_posX - bugScaledW / 2, _posY - bugScaledH));
+        await windowManager.setBounds(Rect.fromLTWH(_posX - scaledW / 2, _posY - scaledH, scaledW, scaledH));
       }
     } catch (_) {}
   }
@@ -196,6 +231,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
       _menuAbierto = !_menuAbierto;
       _estado = BichitoEstado.detenido;
       _expresion = Expresion.esperando;
+      _girando = false;
     });
     if (!_menuAbierto && !_detenidoPorMouse) _iniciarCaminata();
     _actualizarPosicionVentana();
@@ -206,10 +242,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   }
 
   void _onPointerDown(PointerDownEvent event) {
-    // Si el menú está abierto, ignorar interacciones en la serpiente
     if (_menuAbierto) return;
-    _pointerDownPos = event.position;
-    _dragActivo = false;
     _walkTimer?.cancel();
     setState(() {
       _estado = BichitoEstado.detenido;
@@ -217,42 +250,12 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     });
   }
 
-  void _onPointerMove(PointerMoveEvent event) {
-    // No arrastrar si el menú está abierto
-    if (_menuAbierto || _pointerDownPos == null) return;
-    if (!_dragActivo) {
-      final totalDx = (event.position.dx - _pointerDownPos!.dx).abs();
-      final totalDy = (event.position.dy - _pointerDownPos!.dy).abs();
-      if (totalDx < 5 && totalDy < 5) return;
-      _dragActivo = true;
-      setState(() => _arrastrando = true);
-    }
-    _posX += event.delta.dx;
-    _posY += event.delta.dy;
-    _posX = _posX.clamp(_screenLeft + _bugW / 2, _screenLeft + _screenWidth - _bugW / 2);
-    _posY = _posY.clamp(_screenTop + _bugH, _screenTop + _screenHeight);
-    _actualizarPosicionVentana();
-  }
-
   void _onPointerUp(PointerUpEvent event) {
     if (_menuAbierto) {
       _onTapBichito();
       return;
     }
-    if (!_dragActivo) {
-      _onTapBichito();
-    }
-    _arrastrando = false;
-    _dragActivo = false;
-    _pointerDownPos = null;
-  }
-
-  void _aplicarBloqueoCursor() {
-    if (_bloquearCursor) {
-      WindowsServices.lockCursor(_posX.toInt() - 100, _posY.toInt() - 100, 200, 200);
-    } else {
-      WindowsServices.unlockCursor();
-    }
+    _onTapBichito();
   }
 
   void _toggleEvitarSuspension() async {
@@ -260,14 +263,6 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     WindowsServices.setAvoidSleep(nuevo);
     await StorageManager.instance.updateConfiguracion((cfg) => cfg.evitarSuspension = nuevo);
     setState(() => _evitarSuspension = nuevo);
-  }
-
-  void _toggleBloquearCursor() async {
-    final nuevo = !_bloquearCursor;
-    if (nuevo) _aplicarBloqueoCursor();
-    else WindowsServices.unlockCursor();
-    await StorageManager.instance.updateConfiguracion((cfg) => cfg.bloquearCursor = nuevo);
-    setState(() => _bloquearCursor = nuevo);
   }
 
   void _iniciarTemporizador() {
@@ -295,7 +290,9 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   }
 
   String get _imagenActual {
-    if (_detenidoPorMouse || _menuAbierto || _expresion == Expresion.esperando || _expresion == Expresion.alerta) {
+    if (_menuAbierto) return 'assets/img/5.png';
+    if (_girando) return 'assets/img/6.png';
+    if (_detenidoPorMouse || _expresion == Expresion.esperando || _expresion == Expresion.alerta) {
       return 'assets/img/4.png';
     }
     return 'assets/img/${_frame + 1}.png';
@@ -317,9 +314,6 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     if (type == 'keydown') {
       if (key == 'Control') _ctrlDown = true;
       if (key == 'Shift') _shiftDown = true;
-      if (_ctrlDown && _shiftDown && key.toLowerCase() == 'l') {
-        if (_bloquearCursor) _toggleBloquearCursor();
-      }
     } else if (type == 'keyup') {
       if (key == 'Control') _ctrlDown = false;
       if (key == 'Shift') _shiftDown = false;
@@ -329,6 +323,10 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   @override
   Widget build(BuildContext context) {
+    final s = _curImgSize;
+    final scale = 0.85 * _tamano;
+    final scaledW = s.width * scale;
+    final scaledH = _menuAbierto ? s.height * scale : _refH * scale;
     return Opacity(
       opacity: _opacidadGlobal,
       child: Column(
@@ -345,8 +343,6 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                 onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
                 onAbrirPrograma: () => _abrirOpcionPrograma(context),
                 onTemporizador: _iniciarTemporizador,
-                bloquearCursorActivo: _bloquearCursor,
-                onToggleBloquearCursor: _toggleBloquearCursor,
                 onNota: () => _abrirOpcionNota(context),
                 onConfiguracion: _abrirConfiguracion,
                 onSalir: _salir,
@@ -354,12 +350,12 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
             ),
           // Serpiente abajo (siempre visible)
           SizedBox(
-            width: _menuAbierto ? _menuW : _bugW,
-            height: _bugH,
+            width: _menuAbierto ? _menuW : scaledW,
+            height: scaledH,
             child: Stack(
               children: [
                 Positioned(
-                  left: _menuAbierto ? (_menuW - _bugW) / 2 : 0,
+                  left: _menuAbierto ? (_menuW - scaledW) / 2 : 0,
                   bottom: 0,
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
@@ -374,7 +370,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                       }
                     },
                     onExit: (_) {
-                      if (_detenidoPorMouse && !_menuAbierto && !_arrastrando) {
+                      if (_detenidoPorMouse && !_menuAbierto) {
                         setState(() {
                           _estado = BichitoEstado.caminando;
                           _expresion = Expresion.normal;
@@ -385,20 +381,15 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                     },
                     child: Listener(
                       onPointerDown: _onPointerDown,
-                      onPointerMove: _onPointerMove,
                       onPointerUp: _onPointerUp,
                       child: SizedBox(
-                        width: _bugW,
-                        height: _bugH,
+                        width: scaledW,
+                        height: scaledH,
                         child: Transform.flip(
                           flipX: _mirandoIzq,
-                          child: FittedBox(
-                            fit: BoxFit.none,
+                          child: Align(
                             alignment: Alignment.bottomCenter,
-                            child: Transform.scale(
-                              scale: 0.85 * _tamano,
-                              child: Image.asset(_imagenActual),
-                            ),
+                            child: Image.asset(_imagenActual),
                           ),
                         ),
                       ),
@@ -406,15 +397,15 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                   ),
                 ),
                 if (!_menuAbierto && _evitarSuspension)
-                  const Positioned(
-                    left: _bugW - 20,
+                  Positioned(
+                    left: scaledW - 20,
                     top: 0,
-                    child: Text('⚡', style: TextStyle(fontSize: 14, color: Colors.black87)),
+                    child: const Text('⚡', style: TextStyle(fontSize: 14, color: Colors.black87)),
                   ),
                 if (!_menuAbierto && _temporizador != null && _temporizador!.activo)
                   Positioned(
                     left: 0,
-                    top: _bugH + 2,
+                    top: scaledH + 2,
                     child: StreamBuilder<Duration>(
                       stream: _temporizador!.stream,
                       initialData: _temporizador!.restante,
@@ -659,7 +650,6 @@ class _ConfigDialogState extends State<_ConfigDialog> {
       tamano: _tamano,
       inicioAutomatico: _inicioAutomatico,
       evitarSuspension: StorageManager.instance.configuracion.evitarSuspension,
-      bloquearCursor: StorageManager.instance.configuracion.bloquearCursor,
     ));
     widget.estado.setState(() {
       widget.estado._velocidad = _velocidad;

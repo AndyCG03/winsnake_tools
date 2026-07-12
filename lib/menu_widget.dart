@@ -7,8 +7,6 @@ class MenuWidget extends StatelessWidget {
   final VoidCallback onAbrirCarpeta;
   final VoidCallback onAbrirPrograma;
   final VoidCallback onTemporizador;
-  final bool bloquearCursorActivo;
-  final VoidCallback onToggleBloquearCursor;
   final VoidCallback onNota;
   final VoidCallback onConfiguracion;
   final VoidCallback onSalir;
@@ -21,8 +19,6 @@ class MenuWidget extends StatelessWidget {
     required this.onAbrirCarpeta,
     required this.onAbrirPrograma,
     required this.onTemporizador,
-    required this.bloquearCursorActivo,
-    required this.onToggleBloquearCursor,
     required this.onNota,
     required this.onConfiguracion,
     required this.onSalir,
@@ -101,15 +97,6 @@ class MenuWidget extends StatelessWidget {
         icon: Icons.timer_outlined,
         label: 'Temporizador',
         onTap: onTemporizador,
-      ),
-      _MenuItem(
-        icon: Icons.lock_outline,
-        label: 'Bloquear cursor',
-        trailing: _Switch(
-          value: bloquearCursorActivo,
-          onChanged: (_) => onToggleBloquearCursor(),
-          activeColor: Colors.orangeAccent,
-        ),
       ),
       _MenuItem(
         icon: Icons.note_add_outlined,

@@ -9,16 +9,14 @@ class Configuracion {
   double tamano;
   bool inicioAutomatico;
   bool evitarSuspension;
-  bool bloquearCursor;
 
   Configuracion({
     this.velocidad = 1.0,
     this.apariencia = 0,
     this.opacidad = 1.0,
-    this.tamano = 1.0,
+    this.tamano = 0.5,
     this.inicioAutomatico = false,
     this.evitarSuspension = false,
-    this.bloquearCursor = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -28,17 +26,15 @@ class Configuracion {
         'tamano': tamano,
         'inicioAutomatico': inicioAutomatico,
         'evitarSuspension': evitarSuspension,
-        'bloquearCursor': bloquearCursor,
       };
 
   factory Configuracion.fromJson(Map<String, dynamic> json) => Configuracion(
         velocidad: (json['velocidad'] as num?)?.toDouble() ?? 1.0,
         apariencia: json['apariencia'] as int? ?? 0,
         opacidad: (json['opacidad'] as num?)?.toDouble() ?? 1.0,
-        tamano: (json['tamano'] as num?)?.toDouble() ?? 1.0,
+        tamano: (json['tamano'] as num?)?.toDouble() ?? 0.5,
         inicioAutomatico: json['inicioAutomatico'] as bool? ?? false,
         evitarSuspension: json['evitarSuspension'] as bool? ?? false,
-        bloquearCursor: json['bloquearCursor'] as bool? ?? false,
       );
 }
 
