@@ -1,0 +1,25 @@
+name: bichito_widget
+description: "Widget de escritorio con un bichito animado que camina por la pantalla."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  window_manager: ^0.3.9
+  shared_preferences: ^2.5.3
+  screen_retriever: ^0.1.9
+  win32: ^5.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/img/
