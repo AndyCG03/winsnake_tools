@@ -14,7 +14,7 @@ import 'servicios/windows_services.dart';
 const double _bugW = 290.0;
 const double _refH = 194.0; // altura de referencia (img 4) para alinear al pie
 const double _menuW = 330.0;
-const double _menuH = 420.0;
+const double _menuH = 310.0;
 
 enum BichitoEstado { caminando, detenido, asustado, saltando }
 
@@ -227,13 +227,19 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   void _onTapBichito() {
     _walkTimer?.cancel();
+    final abriendo = !_menuAbierto;
     setState(() {
-      _menuAbierto = !_menuAbierto;
-      _estado = BichitoEstado.detenido;
-      _expresion = Expresion.esperando;
+      _menuAbierto = abriendo;
       _girando = false;
+      if (abriendo) {
+        _estado = BichitoEstado.detenido;
+        _expresion = Expresion.esperando;
+      } else {
+        _estado = BichitoEstado.caminando;
+        _expresion = Expresion.normal;
+      }
     });
-    if (!_menuAbierto && !_detenidoPorMouse) _iniciarCaminata();
+    if (!abriendo && !_detenidoPorMouse) _iniciarCaminata();
     _actualizarPosicionVentana();
   }
 
@@ -243,11 +249,6 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   void _onPointerDown(PointerDownEvent event) {
     if (_menuAbierto) return;
-    _walkTimer?.cancel();
-    setState(() {
-      _estado = BichitoEstado.detenido;
-      _expresion = Expresion.esperando;
-    });
   }
 
   void _onPointerUp(PointerUpEvent event) {
@@ -326,30 +327,30 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     final s = _curImgSize;
     final scale = 0.85 * _tamano;
     final scaledW = s.width * scale;
-    final scaledH = _menuAbierto ? s.height * scale : _refH * scale;
-    return Opacity(
-      opacity: _opacidadGlobal,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Menú arriba (solo visible cuando está abierto)
-          if (_menuAbierto)
-            SizedBox(
-              width: _menuW,
-              child: MenuWidget(
-                onCerrar: _cerrarMenu,
-                evitarSuspensionActivo: _evitarSuspension,
-                onToggleEvitarSuspension: _toggleEvitarSuspension,
-                onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
-                onAbrirPrograma: () => _abrirOpcionPrograma(context),
-                onTemporizador: _iniciarTemporizador,
-                onNota: () => _abrirOpcionNota(context),
-                onConfiguracion: _abrirConfiguracion,
-                onSalir: _salir,
-              ),
-            ),
-          // Serpiente abajo (siempre visible)
+    final scaledH = _refH * scale;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Menú arriba (solo visible cuando está abierto)
+        if (_menuAbierto)
           SizedBox(
+            width: _menuW,
+            child: MenuWidget(
+              onCerrar: _cerrarMenu,
+              evitarSuspensionActivo: _evitarSuspension,
+              onToggleEvitarSuspension: _toggleEvitarSuspension,
+              onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
+              onAbrirPrograma: () => _abrirOpcionPrograma(context),
+              onTemporizador: _iniciarTemporizador,
+              onNota: () => _abrirOpcionNota(context),
+              onConfiguracion: _abrirConfiguracion,
+              onSalir: _salir,
+            ),
+          ),
+        // Serpiente abajo (siempre visible)
+        Opacity(
+          opacity: _opacidadGlobal,
+          child: SizedBox(
             width: _menuAbierto ? _menuW : scaledW,
             height: scaledH,
             child: Stack(
@@ -390,46 +391,17 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                           child: Align(
                             alignment: Alignment.bottomCenter,
                             child: Image.asset(_imagenActual),
-                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-                if (!_menuAbierto && _evitarSuspension)
-                  Positioned(
-                    left: scaledW - 20,
-                    top: 0,
-                    child: const Text('⚡', style: TextStyle(fontSize: 14, color: Colors.black87)),
-                  ),
-                if (!_menuAbierto && _temporizador != null && _temporizador!.activo)
-                  Positioned(
-                    left: 0,
-                    top: scaledH + 2,
-                    child: StreamBuilder<Duration>(
-                      stream: _temporizador!.stream,
-                      initialData: _temporizador!.restante,
-                      builder: (ctx, snap) {
-                        final t = snap.data!;
-                        final secs = t.inSeconds;
-                        final m = (secs ~/ 60).toString().padLeft(2, '0');
-                        final s = (secs % 60).toString().padLeft(2, '0');
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text('$m:$s', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        ),
+      ],
     );
   }
 
