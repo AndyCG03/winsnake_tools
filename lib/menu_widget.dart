@@ -28,6 +28,10 @@ class MenuWidget extends StatelessWidget {
     required this.onSalir,
   });
 
+  // Anchos fijos para alineación perfecta entre filas
+  static const double _iconW = 34.0;
+  static const double _trailingW = 56.0;
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -62,7 +66,7 @@ class MenuWidget extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ..._buildItems(context),
+                ..._buildItems(),
                 const SizedBox(height: 8),
               ],
             ),
@@ -72,18 +76,15 @@ class MenuWidget extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildItems(BuildContext context) {
+  List<Widget> _buildItems() {
     return [
       _MenuItem(
         icon: Icons.power_settings_new,
         label: 'Evitar suspensión',
-        trailing: Transform.scale(
-          scale: 0.65,
-          child: Switch(
-            value: evitarSuspensionActivo,
-            onChanged: (_) => onToggleEvitarSuspension(),
-            activeTrackColor: Colors.greenAccent,
-          ),
+        trailing: _Switch(
+          value: evitarSuspensionActivo,
+          onChanged: (_) => onToggleEvitarSuspension(),
+          activeColor: Colors.greenAccent,
         ),
       ),
       _MenuItem(
@@ -104,13 +105,10 @@ class MenuWidget extends StatelessWidget {
       _MenuItem(
         icon: Icons.lock_outline,
         label: 'Bloquear cursor',
-        trailing: Transform.scale(
-          scale: 0.65,
-          child: Switch(
-            value: bloquearCursorActivo,
-            onChanged: (_) => onToggleBloquearCursor(),
-            activeTrackColor: Colors.orangeAccent,
-          ),
+        trailing: _Switch(
+          value: bloquearCursorActivo,
+          onChanged: (_) => onToggleBloquearCursor(),
+          activeColor: Colors.orangeAccent,
         ),
       ),
       _MenuItem(
@@ -123,7 +121,7 @@ class MenuWidget extends StatelessWidget {
         label: 'Configuración',
         onTap: onConfiguracion,
       ),
-      const Divider(color: Colors.white12, height: 1),
+      const Divider(color: Colors.white12, height: 1, thickness: 1),
       _MenuItem(
         icon: Icons.exit_to_app,
         label: 'Salir',
@@ -132,6 +130,54 @@ class MenuWidget extends StatelessWidget {
       ),
       const SizedBox(height: 4),
     ];
+  }
+}
+
+/// Toggle compacto personalizado que ocupa exactamente 30x16px,
+/// evitando el sobre-espacio de layout que deja Transform.scale + Switch.
+class _Switch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool?> onChanged;
+  final Color activeColor;
+
+  const _Switch({
+    required this.value,
+    required this.onChanged,
+    required this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: MenuWidget._trailingW,
+      height: 20,
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: GestureDetector(
+          onTap: () => onChanged(!value),
+          child: Container(
+            width: 30,
+            height: 16,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: value ? activeColor : Colors.white24,
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Align(
+              alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -152,27 +198,42 @@ class _MenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = textColor ?? Colors.white;
+    final iconColor = textColor ?? Colors.white70;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: textColor ?? Colors.white70),
-            const SizedBox(width: 10),
+            // Icono a ancho fijo -> alineado en todas las filas
+            SizedBox(
+              width: MenuWidget._iconW,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Icon(icon, size: 20, color: iconColor),
+              ),
+            ),
+            // Label
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(
-                  color: textColor ?? Colors.white,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: color, fontSize: 13, height: 1.2),
               ),
             ),
-            if (trailing != null) trailing!,
-            if (trailing == null && onTap != null)
-              const Icon(Icons.chevron_right, size: 16, color: Colors.white24),
+            // Trailing a ancho fijo -> alineado en todas las filas
+            SizedBox(
+              width: MenuWidget._trailingW,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: trailing ??
+                    (onTap != null
+                        ? const Icon(Icons.chevron_right,
+                            size: 18, color: Colors.white24)
+                        : const SizedBox.shrink()),
+              ),
+            ),
           ],
         ),
       ),

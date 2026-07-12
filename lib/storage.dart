@@ -6,6 +6,7 @@ class Configuracion {
   double velocidad;
   int apariencia;
   double opacidad;
+  double tamano;
   bool inicioAutomatico;
   bool evitarSuspension;
   bool bloquearCursor;
@@ -14,8 +15,9 @@ class Configuracion {
     this.velocidad = 1.0,
     this.apariencia = 0,
     this.opacidad = 1.0,
+    this.tamano = 1.0,
     this.inicioAutomatico = false,
-    this. evitarSuspension = false,
+    this.evitarSuspension = false,
     this.bloquearCursor = false,
   });
 
@@ -23,6 +25,7 @@ class Configuracion {
         'velocidad': velocidad,
         'apariencia': apariencia,
         'opacidad': opacidad,
+        'tamano': tamano,
         'inicioAutomatico': inicioAutomatico,
         'evitarSuspension': evitarSuspension,
         'bloquearCursor': bloquearCursor,
@@ -32,6 +35,7 @@ class Configuracion {
         velocidad: (json['velocidad'] as num?)?.toDouble() ?? 1.0,
         apariencia: json['apariencia'] as int? ?? 0,
         opacidad: (json['opacidad'] as num?)?.toDouble() ?? 1.0,
+        tamano: (json['tamano'] as num?)?.toDouble() ?? 1.0,
         inicioAutomatico: json['inicioAutomatico'] as bool? ?? false,
         evitarSuspension: json['evitarSuspension'] as bool? ?? false,
         bloquearCursor: json['bloquearCursor'] as bool? ?? false,

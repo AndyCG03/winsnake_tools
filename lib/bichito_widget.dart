@@ -13,8 +13,8 @@ import 'servicios/windows_services.dart';
 
 const double _bugW = 290.0;
 const double _bugH = 170.0;
-const double _menuW = 320.0;
-const double _totalMenuH = 390.0;
+const double _menuW = 330.0;
+const double _menuH = 420.0;
 
 enum BichitoEstado { caminando, detenido, asustado, saltando }
 
@@ -48,6 +48,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   double _screenHeight = 1080;
   double _velocidad = 0.8;
   double _opacidadGlobal = 1.0;
+  double _tamano = 1.0;
   bool _evitarSuspension = false;
   bool _bloquearCursor = false;
   bool _detenidoPorMouse = false;
@@ -107,6 +108,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     final cfg = StorageManager.instance.configuracion;
     _velocidad = cfg.velocidad;
     _opacidadGlobal = cfg.opacidad;
+    _tamano = cfg.tamano;
     _evitarSuspension = cfg.evitarSuspension;
     _bloquearCursor = cfg.bloquearCursor;
     if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
@@ -175,12 +177,15 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   Future<void> _actualizarPosicionVentana() async {
     try {
+      final bugScaledW = _bugW * _tamano;
+      final bugScaledH = _bugH * _tamano;
       if (_menuAbierto) {
-        await windowManager.setPosition(Offset(_posX - _menuW / 2, _posY - _totalMenuH));
-        await windowManager.setSize(const Size(_menuW, _totalMenuH));
+        final totalH = _menuH + bugScaledH;
+        await windowManager.setSize(Size(_menuW, totalH));
+        await windowManager.setPosition(Offset(_posX - _menuW / 2, _posY - totalH));
       } else {
-        await windowManager.setPosition(Offset(_posX - _bugW / 2, _posY - _bugH));
-        await windowManager.setSize(const Size(_bugW, _bugH));
+        await windowManager.setSize(Size(bugScaledW, bugScaledH));
+        await windowManager.setPosition(Offset(_posX - bugScaledW / 2, _posY - bugScaledH));
       }
     } catch (_) {}
   }
@@ -189,8 +194,8 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     _walkTimer?.cancel();
     setState(() {
       _menuAbierto = !_menuAbierto;
-      _estado = _menuAbierto ? BichitoEstado.detenido : BichitoEstado.caminando;
-      _expresion = _menuAbierto ? Expresion.esperando : Expresion.normal;
+      _estado = BichitoEstado.detenido;
+      _expresion = Expresion.esperando;
     });
     if (!_menuAbierto && !_detenidoPorMouse) _iniciarCaminata();
     _actualizarPosicionVentana();
@@ -201,6 +206,8 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    // Si el menú está abierto, ignorar interacciones en la serpiente
+    if (_menuAbierto) return;
     _pointerDownPos = event.position;
     _dragActivo = false;
     _walkTimer?.cancel();
@@ -211,7 +218,8 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    if (_pointerDownPos == null) return;
+    // No arrastrar si el menú está abierto
+    if (_menuAbierto || _pointerDownPos == null) return;
     if (!_dragActivo) {
       final totalDx = (event.position.dx - _pointerDownPos!.dx).abs();
       final totalDy = (event.position.dy - _pointerDownPos!.dy).abs();
@@ -227,6 +235,10 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   }
 
   void _onPointerUp(PointerUpEvent event) {
+    if (_menuAbierto) {
+      _onTapBichito();
+      return;
+    }
     if (!_dragActivo) {
       _onTapBichito();
     }
@@ -319,12 +331,12 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   Widget build(BuildContext context) {
     return Opacity(
       opacity: _opacidadGlobal,
-      child: Stack(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Menú arriba (solo visible cuando está abierto)
           if (_menuAbierto)
-            Positioned(
-              left: 0,
-              top: 0,
+            SizedBox(
               width: _menuW,
               child: MenuWidget(
                 onCerrar: _cerrarMenu,
@@ -340,83 +352,91 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                 onSalir: _salir,
               ),
             ),
-          Positioned(
-            left: _menuAbierto ? _menuW / 2 - _bugW / 2 : 0,
-            bottom: 0,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onHover: (_) {
-                if (_estado == BichitoEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
-                  setState(() {
-                    _estado = BichitoEstado.detenido;
-                    _expresion = Expresion.esperando;
-                    _detenidoPorMouse = true;
-                  });
-                  _walkTimer?.cancel();
-                }
-              },
-              onExit: (_) {
-                if (_detenidoPorMouse && !_menuAbierto && !_arrastrando) {
-                  setState(() {
-                    _estado = BichitoEstado.caminando;
-                    _expresion = Expresion.normal;
-                    _detenidoPorMouse = false;
-                  });
-                  _iniciarCaminata();
-                }
-              },
-              child: Listener(
-                onPointerDown: _onPointerDown,
-                onPointerMove: _onPointerMove,
-                onPointerUp: _onPointerUp,
-                child: SizedBox(
-            width: _bugW,
+          // Serpiente abajo (siempre visible)
+          SizedBox(
+            width: _menuAbierto ? _menuW : _bugW,
             height: _bugH,
-            child: Transform.flip(
-                    flipX: _mirandoIzq,
-                      child: FittedBox(
-                      fit: BoxFit.none,
-                      alignment: Alignment.bottomCenter,
-                      child: Transform.scale(
-                        scale: 0.85,
-                        child: Image.asset(_imagenActual),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: _menuAbierto ? (_menuW - _bugW) / 2 : 0,
+                  bottom: 0,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    onHover: (_) {
+                      if (_estado == BichitoEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
+                        setState(() {
+                          _estado = BichitoEstado.detenido;
+                          _expresion = Expresion.esperando;
+                          _detenidoPorMouse = true;
+                        });
+                        _walkTimer?.cancel();
+                      }
+                    },
+                    onExit: (_) {
+                      if (_detenidoPorMouse && !_menuAbierto && !_arrastrando) {
+                        setState(() {
+                          _estado = BichitoEstado.caminando;
+                          _expresion = Expresion.normal;
+                          _detenidoPorMouse = false;
+                        });
+                        _iniciarCaminata();
+                      }
+                    },
+                    child: Listener(
+                      onPointerDown: _onPointerDown,
+                      onPointerMove: _onPointerMove,
+                      onPointerUp: _onPointerUp,
+                      child: SizedBox(
+                        width: _bugW,
+                        height: _bugH,
+                        child: Transform.flip(
+                          flipX: _mirandoIzq,
+                          child: FittedBox(
+                            fit: BoxFit.none,
+                            alignment: Alignment.bottomCenter,
+                            child: Transform.scale(
+                              scale: 0.85 * _tamano,
+                              child: Image.asset(_imagenActual),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-             ),
-            ),
-          if (!_menuAbierto && _evitarSuspension)
-            const Positioned(
-              left: _bugW - 20,
-              top: 0,
-              child: Text('⚡', style: TextStyle(fontSize: 14, color: Colors.black87)),
-            ),
-          if (!_menuAbierto && _temporizador != null && _temporizador!.activo)
-            Positioned(
-              left: 0,
-              top: _bugH + 2,
-              child: StreamBuilder<Duration>(
-                stream: _temporizador!.stream,
-                initialData: _temporizador!.restante,
-                builder: (ctx, snap) {
-                  final t = snap.data!;
-                  final secs = t.inSeconds;
-                  final m = (secs ~/ 60).toString().padLeft(2, '0');
-                  final s = (secs % 60).toString().padLeft(2, '0');
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(4),
+                if (!_menuAbierto && _evitarSuspension)
+                  const Positioned(
+                    left: _bugW - 20,
+                    top: 0,
+                    child: Text('⚡', style: TextStyle(fontSize: 14, color: Colors.black87)),
+                  ),
+                if (!_menuAbierto && _temporizador != null && _temporizador!.activo)
+                  Positioned(
+                    left: 0,
+                    top: _bugH + 2,
+                    child: StreamBuilder<Duration>(
+                      stream: _temporizador!.stream,
+                      initialData: _temporizador!.restante,
+                      builder: (ctx, snap) {
+                        final t = snap.data!;
+                        final secs = t.inSeconds;
+                        final m = (secs ~/ 60).toString().padLeft(2, '0');
+                        final s = (secs % 60).toString().padLeft(2, '0');
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text('$m:$s', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                        );
+                      },
                     ),
-                    child: Text('$m:$s', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                  );
-                },
-              ),
+                  ),
+              ],
             ),
-          ..._notas,
+          ),
         ],
       ),
     );
@@ -447,7 +467,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                 StorageManager.instance.setCarpetas([...StorageManager.instance.carpetas, path]);
               });
             },
-            child: const Text('+ Agregar carpeta', style: TextStyle(color: Colors.blue)),
+            child: Text('+ Agregar carpeta', style: TextStyle(color: Theme.of(ctx).colorScheme.primary)),
           ),
         ],
       ),
@@ -487,7 +507,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
           )),
           SimpleDialogOption(
             onPressed: () { Navigator.pop(ctx); _mostrarDialogoAgregarPrograma(context); },
-            child: const Text('+ Agregar programa', style: TextStyle(color: Colors.blue)),
+            child: Text('+ Agregar programa', style: TextStyle(color: Theme.of(ctx).colorScheme.primary)),
           ),
         ],
       ),
@@ -551,6 +571,7 @@ class _ConfigDialog extends StatefulWidget {
 class _ConfigDialogState extends State<_ConfigDialog> {
   late double _velocidad;
   late double _opacidad;
+  late double _tamano;
   late bool _inicioAutomatico;
 
   @override
@@ -559,19 +580,21 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     final cfg = StorageManager.instance.configuracion;
     _velocidad = cfg.velocidad;
     _opacidad = cfg.opacidad;
+    _tamano = cfg.tamano;
     _inicioAutomatico = cfg.inicioAutomatico;
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Configuracion'),
+      title: const Text('Configuración'),
       content: SizedBox(
-        width: 300,
+        width: 320,
         child: ListView(
           shrinkWrap: true,
+          padding: EdgeInsets.zero,
           children: [
-            const Text('Velocidad del bichito'),
+            const Text('Velocidad'),
             Slider(value: _velocidad, min: 0.3, max: 3.0, divisions: 27,
               label: _velocidad.toStringAsFixed(1), onChanged: (v) => setState(() => _velocidad = v)),
             const Divider(),
@@ -579,14 +602,26 @@ class _ConfigDialogState extends State<_ConfigDialog> {
             Slider(value: _opacidad, min: 0.2, max: 1.0, divisions: 8,
               label: (_opacidad * 100).round().toString(), onChanged: (v) => setState(() => _opacidad = v)),
             const Divider(),
+            const Text('Tamaño'),
+            Slider(value: _tamano, min: 0.4, max: 2.0, divisions: 16,
+              label: '${(_tamano * 100).round()}%', onChanged: (v) => setState(() => _tamano = v)),
+            const Divider(),
             CheckboxListTile(
-              title: const Text('Iniciar con Windows'), value: _inicioAutomatico,
-              onChanged: (v) { final val = v ?? false; setState(() => _inicioAutomatico = val); WindowsServices.setAutoStart(val); },
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Iniciar con Windows'),
+              value: _inicioAutomatico,
+              onChanged: (v) {
+                final val = v ?? false;
+                setState(() => _inicioAutomatico = val);
+                WindowsServices.setAutoStart(val);
+              },
             ),
             const Divider(),
-            const Text('Carpetas guardadas:'), ..._buildCarpetasList(),
+            const Text('Carpetas guardadas:'),
+            ..._buildCarpetasList(),
             const Divider(),
-            const Text('Programas guardados:'), ..._buildProgramasList(),
+            const Text('Programas guardados:'),
+            ..._buildProgramasList(),
           ],
         ),
       ),
@@ -618,7 +653,10 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 
   void _guardar() {
     StorageManager.instance.setConfiguracion(Configuracion(
-      velocidad: _velocidad, apariencia: 0, opacidad: _opacidad,
+      velocidad: _velocidad,
+      apariencia: 0,
+      opacidad: _opacidad,
+      tamano: _tamano,
       inicioAutomatico: _inicioAutomatico,
       evitarSuspension: StorageManager.instance.configuracion.evitarSuspension,
       bloquearCursor: StorageManager.instance.configuracion.bloquearCursor,
@@ -626,6 +664,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     widget.estado.setState(() {
       widget.estado._velocidad = _velocidad;
       widget.estado._opacidadGlobal = _opacidad;
+      widget.estado._tamano = _tamano;
     });
     widget.estado._iniciarCaminata();
     Navigator.pop(context);
