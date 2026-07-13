@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.widget" "\0"
-            VALUE "FileDescription", "bichito_widget" "\0"
+            VALUE "CompanyName", "AndyCG03" "\0"
+            VALUE "FileDescription", "winsnake_tools" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "bichito_widget" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.widget. All rights reserved." "\0"
-            VALUE "OriginalFilename", "bichito_widget.exe" "\0"
-            VALUE "ProductName", "bichito_widget" "\0"
+            VALUE "InternalName", "winsnake_tools" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 AndyCG03. All rights reserved." "\0"
+            VALUE "OriginalFilename", "winsnake_tools.exe" "\0"
+            VALUE "ProductName", "WinSnake Tools" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
