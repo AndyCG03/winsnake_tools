@@ -74,7 +74,18 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _obtenerDimensionesPantalla();
+    // Posición inicial segura SÍNCRONA (antes del async)
+    try {
+      final w = WindowsServices.getScreenWidth().toDouble();
+      final h = WindowsServices.getScreenHeight().toDouble();
+      _screenWidth = w;
+      _screenHeight = h;
+      _screenBottom = h - 50; // estimación barra de tareas
+      _posX = w * 0.7;
+      _posY = _screenBottom;
+      _actualizarPosicionVentana();
+    } catch (_) {}
+    _obtenerDimensionesPantalla(); // async: sobreescribe con valores precisos
     _cargarConfiguracion();
     _iniciarAnimacion();
     _iniciarAccionesEspontaneas();
@@ -433,14 +444,17 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                       onPointerUp: _onPointerUp,
                       child: SizedBox(
                         width: scaledW,
-                        height: imgH,
+                        height: scaledH,
                         child: Transform.flip(
                           flipX: _mirandoIzq,
-                          child: Image.asset(_imagenActual, fit: BoxFit.contain),
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: Image.asset(_imagenActual, fit: BoxFit.contain),
                         ),
                       ),
                     ),
                   ),
+                ),
                 ),
               ],
             ),

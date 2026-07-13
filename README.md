@@ -1,5 +1,10 @@
 # WinSnake Tools
 
+
+<p align="center">
+  <img src="assets/gif/winsnake.gif" alt="WinSnake Screenshot" width="600">
+</p>
+
 Widget de escritorio para Windows con una serpiente animada que camina sobre la pantalla, siempre visible encima de otras ventanas, con menú contextual de utilidades del sistema.
 
 ## Estado Actual
@@ -78,6 +83,12 @@ flutter build windows --debug
 
 El ejecutable se genera en `build\windows\x64\runner\Debug\winsnake_tools.exe`.
 
+## Instalación
+
+1. Compila el proyecto o descarga el instalador desde [Releases](https://github.com/AndyCG03/winsnake_tools/releases)
+2. Ejecuta `winsnake_tools_setup.exe`
+3. La serpiente aparecerá en la pantalla lista para usar
+
 ## Estructura del Proyecto
 
 ```
@@ -94,6 +105,9 @@ lib/
 │   └── nota_rapida.dart       # Widget post-it y servicio de persistencia
 └── configuracion/             # (reservado)
 assets/
+├── gif/
+│   ├── 0713.gif               # Demo animada
+│   └── Screenshot 2026-07-13 131035.png
 └── img/
     ├── 1.png                  # Frame caminar 1
     ├── 2.png                  # Frame caminar 2
@@ -106,4 +120,16 @@ assets/
     └── 9.png                  # Dormir frame 3
 windows/
 └── runner/main.cpp            # Ventana inicial
+installer/
+└── setup.iss                  # Script de Inno Setup para instalador
 ```
+
+## Licencia
+
+**MIT License** © 2026 AndyCG03
+
+Se concede permiso, libre de cargos, a cualquier persona que obtenga una copia de este software y de los archivos de documentación asociados, para utilizar, copiar, modificar, fusionar, publicar, distribuir, sublicenciar y/o vender copias del Software, y a permitir a las personas a las que se les proporcione el Software a hacer lo mismo, sujeto a las siguientes condiciones:
+
+El aviso de copyright anterior y este aviso de permiso se incluirán en todas las copias o partes sustanciales del Software.
+
+EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O IMPLÍCITA.
