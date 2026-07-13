@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'storage.dart';
-import 'bichito_widget.dart';
+import 'winsnake_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,17 +27,17 @@ void main() async {
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
-  runApp(const BichitoApp());
+  runApp(const WinSnakeApp());
 }
 
-class BichitoApp extends StatelessWidget {
-  const BichitoApp({super.key});
+class WinSnakeApp extends StatelessWidget {
+  const WinSnakeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Bichito Widget',
+      title: 'WinSnake Tools',
       theme: ThemeData(
         brightness: Brightness.dark,
         colorScheme: const ColorScheme.dark(
@@ -70,7 +70,7 @@ class BichitoApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const BichitoWidget(),
+      home: const WinSnakeWidget(),
     );
   }
 }

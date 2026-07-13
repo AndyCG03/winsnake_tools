@@ -1,5 +1,5 @@
-name: bichito_widget
-description: "Widget de escritorio con un bichito animado que camina por la pantalla."
+name: winsnake_tools
+description: "WinSnake Tools - Widget de escritorio con una serpiente animada que camina por la pantalla."
 publish_to: 'none'
 version: 1.0.0+1
 

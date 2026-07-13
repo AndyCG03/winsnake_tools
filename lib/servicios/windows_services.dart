@@ -30,7 +30,7 @@ class WindowsServices {
 
   static void setAutoStart(bool enable) {
     const runKeyPath = 'Software\\Microsoft\\Windows\\CurrentVersion\\Run';
-    const appName = 'BichitoWidget';
+    const appName = 'WinSnakeTools';
 
     final phkResult = calloc<IntPtr>();
     final keyPathUtf16 = runKeyPath.toNativeUtf16();
@@ -90,7 +90,7 @@ class WindowsServices {
       );
       if (status != ERROR_SUCCESS) return false;
       final hKey = phkResult.value;
-      final valueName = 'BichitoWidget'.toNativeUtf16();
+      final valueName = 'WinSnakeTools'.toNativeUtf16();
       try {
         // Check if the value exists by querying it
         final queryStatus = RegQueryValueEx(hKey, valueName, nullptr, nullptr, nullptr, nullptr);

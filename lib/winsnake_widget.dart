@@ -8,28 +8,28 @@ import 'menu_widget.dart';
 import 'opciones/nota_rapida.dart';
 import 'opciones/temporizador.dart';
 import 'storage.dart';
-import 'bichito_painter.dart';
+import 'winsnake_painter.dart';
 import 'servicios/windows_services.dart';
 
 const double _bugW = 290.0;
 const double _refH = 194.0; // altura de referencia (img 4) para alinear al pie
 const double _menuW = 330.0;
-const double _menuH = 310.0;
+const double _menuH = 350.0;
 
-enum BichitoEstado { caminando, detenido, asustado, saltando }
+enum WinSnakeEstado { caminando, detenido, asustado, saltando }
 
-class BichitoWidget extends StatefulWidget {
-  const BichitoWidget({super.key});
+class WinSnakeWidget extends StatefulWidget {
+  const WinSnakeWidget({super.key});
 
   @override
-  State<BichitoWidget> createState() => _BichitoWidgetState();
+  State<WinSnakeWidget> createState() => _WinSnakeWidgetState();
 }
 
-class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserver {
+class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObserver {
   double _posX = 0;
   double _posY = 0;
   bool _mirandoIzq = false;
-  BichitoEstado _estado = BichitoEstado.caminando;
+  WinSnakeEstado _estado = WinSnakeEstado.caminando;
   Expresion _expresion = Expresion.normal;
   int _frame = 0;
   bool _menuAbierto = false;
@@ -41,6 +41,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   Timer? _walkTimer;
   Timer? _animationTimer;
   Timer? _spontaneousTimer;
+  Timer? _sleepTimer;
 
   double _screenLeft = 0;
   double _screenTop = 0;
@@ -52,6 +53,8 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   bool _evitarSuspension = false;
   bool _detenidoPorMouse = false;
   bool _girando = false;
+  bool _durmiendo = false;
+  int _sleepFrame = 0;
   int _lastTurnMs = 0;
   static const Map<String, Size> _imageSizes = {
     'assets/img/1.png': Size(291, 139),
@@ -60,6 +63,9 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     'assets/img/4.png': Size(261, 194),
     'assets/img/5.png': Size(239, 268),
     'assets/img/6.png': Size(279, 169),
+    'assets/img/7.png': Size(131, 102),
+    'assets/img/8.png': Size(130, 72),
+    'assets/img/9.png': Size(130, 85),
   };
   Size get _curImgSize => _imageSizes[_imagenActual]!;
 
@@ -122,17 +128,18 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   void _iniciarCaminata() {
     _walkTimer?.cancel();
+    if (_durmiendo) return;
     final interval = (20 / _velocidad.clamp(0.3, 5.0)).round();
     _walkTimer = Timer.periodic(Duration(milliseconds: interval), (_) {
-      if (_menuAbierto || _estado != BichitoEstado.caminando || _detenidoPorMouse) return;
-      _moverBichito();
+      if (_menuAbierto || _durmiendo || _estado != WinSnakeEstado.caminando || _detenidoPorMouse) return;
+      _moverSnake();
     });
   }
 
   void _iniciarAnimacion() {
     _animationTimer?.cancel();
     _animationTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if ((_estado == BichitoEstado.caminando || _estado == BichitoEstado.saltando) && mounted) {
+      if ((_estado == WinSnakeEstado.caminando || _estado == WinSnakeEstado.saltando) && !_durmiendo && mounted) {
         setState(() => _frame = (_frame + 1) % 3);
       }
     });
@@ -141,7 +148,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
   void _iniciarAccionesEspontaneas() {
     _spontaneousTimer?.cancel();
     _spontaneousTimer = Timer.periodic(const Duration(seconds: 6), (_) {
-      if (_menuAbierto || _girando || _estado != BichitoEstado.caminando || !mounted) return;
+      if (_menuAbierto || _girando || _durmiendo || _estado != WinSnakeEstado.caminando || !mounted) return;
       final rng = Random().nextInt(100);
       if (rng < 5) {
         setState(() => _expresion = Expresion.esperando);
@@ -149,20 +156,20 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
           if (mounted && !_menuAbierto) setState(() => _expresion = Expresion.normal);
         });
       } else if (rng < 10) {
-        setState(() => _estado = BichitoEstado.saltando);
+        setState(() => _estado = WinSnakeEstado.saltando);
         Future.delayed(const Duration(milliseconds: 400), () {
-          if (mounted) setState(() => _estado = BichitoEstado.caminando);
+          if (mounted) setState(() => _estado = WinSnakeEstado.caminando);
         });
       } else if (rng < 15) {
-        setState(() => _estado = BichitoEstado.asustado);
+        setState(() => _estado = WinSnakeEstado.asustado);
         Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) setState(() => _estado = BichitoEstado.caminando);
+          if (mounted) setState(() => _estado = WinSnakeEstado.caminando);
         });
       }
     });
   }
 
-  void _moverBichito() {
+  void _moverSnake() {
     if (_detenidoPorMouse || _girando) return;
     final paso = _velocidad;
     double nuevaX = _posX + (_mirandoIzq ? -paso : paso);
@@ -225,26 +232,26 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     } catch (_) {}
   }
 
-  void _onTapBichito() {
+  void _onTapSnake() {
     _walkTimer?.cancel();
     final abriendo = !_menuAbierto;
     setState(() {
       _menuAbierto = abriendo;
       _girando = false;
       if (abriendo) {
-        _estado = BichitoEstado.detenido;
+        _estado = WinSnakeEstado.detenido;
         _expresion = Expresion.esperando;
-      } else {
-        _estado = BichitoEstado.caminando;
+      } else if (!_durmiendo) {
+        _estado = WinSnakeEstado.caminando;
         _expresion = Expresion.normal;
       }
     });
-    if (!abriendo && !_detenidoPorMouse) _iniciarCaminata();
+    if (!abriendo && !_detenidoPorMouse && !_durmiendo) _iniciarCaminata();
     _actualizarPosicionVentana();
   }
 
   void _cerrarMenu() {
-    if (_menuAbierto) _onTapBichito();
+    if (_menuAbierto) _onTapSnake();
   }
 
   void _onPointerDown(PointerDownEvent event) {
@@ -253,10 +260,10 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   void _onPointerUp(PointerUpEvent event) {
     if (_menuAbierto) {
-      _onTapBichito();
+      _onTapSnake();
       return;
     }
-    _onTapBichito();
+    _onTapSnake();
   }
 
   void _toggleEvitarSuspension() async {
@@ -264,6 +271,23 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     WindowsServices.setAvoidSleep(nuevo);
     await StorageManager.instance.updateConfiguracion((cfg) => cfg.evitarSuspension = nuevo);
     setState(() => _evitarSuspension = nuevo);
+  }
+
+  void _toggleDormir() {
+    final nuevo = !_durmiendo;
+    _sleepTimer?.cancel();
+    if (nuevo) {
+      _walkTimer?.cancel();
+      _spontaneousTimer?.cancel();
+      _sleepFrame = 0;
+      _sleepTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+        if (mounted) setState(() => _sleepFrame = (_sleepFrame + 1) % 3);
+      });
+    } else {
+      if (!_menuAbierto && !_detenidoPorMouse) _iniciarCaminata();
+      _iniciarAccionesEspontaneas();
+    }
+    setState(() => _durmiendo = nuevo);
   }
 
   void _iniciarTemporizador() {
@@ -292,6 +316,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 
   String get _imagenActual {
     if (_menuAbierto) return 'assets/img/5.png';
+    if (_durmiendo) return 'assets/img/${7 + _sleepFrame}.png';
     if (_girando) return 'assets/img/6.png';
     if (_detenidoPorMouse || _expresion == Expresion.esperando || _expresion == Expresion.alerta) {
       return 'assets/img/4.png';
@@ -303,6 +328,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     _walkTimer?.cancel();
     _animationTimer?.cancel();
     _spontaneousTimer?.cancel();
+    _sleepTimer?.cancel();
     _temporizador?.cancel();
     WindowsServices.cleanup();
     windowManager.close();
@@ -328,6 +354,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
     final scale = 0.85 * _tamano;
     final scaledW = s.width * scale;
     final scaledH = _refH * scale;
+    final imgH = s.height * scale;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -335,11 +362,13 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
         if (_menuAbierto)
           SizedBox(
             width: _menuW,
-            child: MenuWidget(
-              onCerrar: _cerrarMenu,
-              evitarSuspensionActivo: _evitarSuspension,
-              onToggleEvitarSuspension: _toggleEvitarSuspension,
-              onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
+              child: MenuWidget(
+                onCerrar: _cerrarMenu,
+                evitarSuspensionActivo: _evitarSuspension,
+                onToggleEvitarSuspension: _toggleEvitarSuspension,
+                durmiendoActivo: _durmiendo,
+                onToggleDormir: _toggleDormir,
+                onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
               onAbrirPrograma: () => _abrirOpcionPrograma(context),
               onTemporizador: _iniciarTemporizador,
               onNota: () => _abrirOpcionNota(context),
@@ -361,9 +390,9 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     onHover: (_) {
-                      if (_estado == BichitoEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
+                      if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
                         setState(() {
-                          _estado = BichitoEstado.detenido;
+                          _estado = WinSnakeEstado.detenido;
                           _expresion = Expresion.esperando;
                           _detenidoPorMouse = true;
                         });
@@ -373,7 +402,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                     onExit: (_) {
                       if (_detenidoPorMouse && !_menuAbierto) {
                         setState(() {
-                          _estado = BichitoEstado.caminando;
+                          _estado = WinSnakeEstado.caminando;
                           _expresion = Expresion.normal;
                           _detenidoPorMouse = false;
                         });
@@ -385,21 +414,18 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
                       onPointerUp: _onPointerUp,
                       child: SizedBox(
                         width: scaledW,
-                        height: scaledH,
+                        height: imgH,
                         child: Transform.flip(
                           flipX: _mirandoIzq,
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: Image.asset(_imagenActual),
+                          child: Image.asset(_imagenActual, fit: BoxFit.contain),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ),
       ],
     );
@@ -524,7 +550,7 @@ class _BichitoWidgetState extends State<BichitoWidget> with WidgetsBindingObserv
 }
 
 class _ConfigDialog extends StatefulWidget {
-  final _BichitoWidgetState estado;
+  final _WinSnakeWidgetState estado;
   const _ConfigDialog({required this.estado});
 
   @override

@@ -27,7 +27,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(100, 100);
   Win32Window::Size size(290, 170);
-  if (!window.Create(L"bichito_widget", origin, size)) {
+  if (!window.Create(L"winsnake_tools", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

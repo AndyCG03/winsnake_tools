@@ -4,6 +4,8 @@ class MenuWidget extends StatelessWidget {
   final VoidCallback onCerrar;
   final bool evitarSuspensionActivo;
   final VoidCallback onToggleEvitarSuspension;
+  final bool durmiendoActivo;
+  final VoidCallback onToggleDormir;
   final VoidCallback onAbrirCarpeta;
   final VoidCallback onAbrirPrograma;
   final VoidCallback onTemporizador;
@@ -16,6 +18,8 @@ class MenuWidget extends StatelessWidget {
     required this.onCerrar,
     required this.evitarSuspensionActivo,
     required this.onToggleEvitarSuspension,
+    required this.durmiendoActivo,
+    required this.onToggleDormir,
     required this.onAbrirCarpeta,
     required this.onAbrirPrograma,
     required this.onTemporizador,
@@ -81,6 +85,15 @@ class MenuWidget extends StatelessWidget {
           value: evitarSuspensionActivo,
           onChanged: (_) => onToggleEvitarSuspension(),
           activeColor: Colors.greenAccent,
+        ),
+      ),
+      _MenuItem(
+        icon: durmiendoActivo ? Icons.bedtime : Icons.bedtime_outlined,
+        label: 'Dormir',
+        trailing: _Switch(
+          value: durmiendoActivo,
+          onChanged: (_) => onToggleDormir(),
+          activeColor: const Color(0xFF7C4DFF),
         ),
       ),
       _MenuItem(

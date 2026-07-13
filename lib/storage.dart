@@ -63,7 +63,7 @@ class StorageManager extends ChangeNotifier {
 
   Future<void> init() async {
     final dir = Directory(
-        '${Platform.environment['APPDATA'] ?? '.'}${Platform.pathSeparator}bichito_widget');
+        '${Platform.environment['APPDATA'] ?? '.'}${Platform.pathSeparator}winsnake_tools');
     if (!await dir.exists()) await dir.create(recursive: true);
     _file = File('${dir.path}${Platform.pathSeparator}storage.json');
     if (await _file!.exists()) {

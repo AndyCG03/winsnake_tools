@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 
 enum Expresion { normal, durmiendo, esperando, alerta }
 
-abstract class BichitoDesign {
+abstract class WinSnakeDesign {
   final String nombre;
-  BichitoDesign(this.nombre);
+  WinSnakeDesign(this.nombre);
   void paint(Canvas canvas, Size size, int frame, Expresion expresion, bool mirandoIzq);
 }
 
-class DesignLadybug extends BichitoDesign {
+class DesignLadybug extends WinSnakeDesign {
   DesignLadybug() : super('Mariquita');
 
   @override
@@ -66,7 +66,7 @@ class DesignLadybug extends BichitoDesign {
   }
 }
 
-class DesignBee extends BichitoDesign {
+class DesignBee extends WinSnakeDesign {
   DesignBee() : super('Abeja');
 
   @override
@@ -128,7 +128,7 @@ class DesignBee extends BichitoDesign {
   }
 }
 
-class DesignCaterpillar extends BichitoDesign {
+class DesignCaterpillar extends WinSnakeDesign {
   DesignCaterpillar() : super('Oruga');
 
   @override
@@ -221,13 +221,13 @@ void _drawIndicators(Canvas canvas, double cx, double cy, double bw, double bh, 
   }
 }
 
-class BichitoPainter extends CustomPainter {
-  final BichitoDesign design;
+class WinSnakePainter extends CustomPainter {
+  final WinSnakeDesign design;
   final int frame;
   final Expresion expresion;
   final bool mirandoIzq;
 
-  BichitoPainter({
+  WinSnakePainter({
     required this.design,
     required this.frame,
     this.expresion = Expresion.normal,
@@ -240,7 +240,7 @@ class BichitoPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(BichitoPainter oldDelegate) {
+  bool shouldRepaint(WinSnakePainter oldDelegate) {
     return oldDelegate.frame != frame ||
         oldDelegate.expresion != expresion ||
         oldDelegate.mirandoIzq != mirandoIzq ||
@@ -248,7 +248,7 @@ class BichitoPainter extends CustomPainter {
   }
 }
 
-final List<BichitoDesign> disenosDisponibles = [
+final List<WinSnakeDesign> disenosDisponibles = [
   DesignLadybug(),
   DesignBee(),
   DesignCaterpillar(),
