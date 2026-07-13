@@ -47,6 +47,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   double _screenTop = 0;
   double _screenWidth = 1920;
   double _screenHeight = 1080;
+  double _screenBottom = 1080; // bottom edge of visible area (excl. taskbar)
   double _velocidad = 0.8;
   double _opacidadGlobal = 1.0;
   double _tamano = 0.5;
@@ -109,12 +110,28 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         _screenWidth = primary.size.width;
         _screenHeight = primary.size.height;
       }
-    } catch (_) {}
+    } catch (_) {
+      _screenLeft = 0;
+      _screenTop = 0;
+    }
+    _screenBottom = _screenTop + _screenHeight;
+    // fallback: si visible bounds fallaron, restar 50px para la barra de tareas
+    if (_screenTop == 0 && _screenHeight >= 700) {
+      try {
+        final fullH = WindowsServices.getScreenHeight().toDouble();
+        if (_screenHeight == fullH) _screenBottom = _screenTop + fullH - 50;
+      } catch (_) {}
+    }
     _posX = _screenLeft + _screenWidth * 0.7;
-    _posY = _screenTop + _screenHeight;
+    _posY = _screenBottom;
     _mirandoIzq = true;
     await _actualizarPosicionVentana();
     WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarCaminata());
+  }
+
+  @override
+  void didChangeMetrics() {
+    _obtenerDimensionesPantalla();
   }
 
   Future<void> _cargarConfiguracion() async {
@@ -223,6 +240,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       final scale = 0.85 * _tamano;
       final scaledW = s.width * scale;
       final scaledH = _menuAbierto ? s.height * scale : _refH * scale;
+      _posY = _posY.clamp(_screenTop + _refH * scale, _screenBottom);
       if (_menuAbierto) {
         final totalH = _menuH + scaledH;
         await windowManager.setBounds(Rect.fromLTWH(_posX - _menuW / 2, _posY - totalH, _menuW, totalH));
@@ -288,6 +306,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       _iniciarAccionesEspontaneas();
     }
     setState(() => _durmiendo = nuevo);
+    _actualizarPosicionVentana();
   }
 
   void _iniciarTemporizador() {
