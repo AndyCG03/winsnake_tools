@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'menu_widget.dart';
@@ -11,8 +10,8 @@ import 'storage.dart';
 import 'winsnake_painter.dart';
 import 'servicios/windows_services.dart';
 
-const double _bugW = 290.0;
-const double _refH = 194.0; // altura de referencia (img 4) para alinear al pie
+const double _refW = 337.0;
+const double _refH = 292.0;
 const double _menuW = 330.0;
 const double _menuH = 350.0;
 
@@ -34,10 +33,9 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   int _frame = 0;
   bool _menuAbierto = false;
   TemporizadorState? _temporizador;
-  final List<Widget> _notas = [];
-  bool _ctrlDown = false;
-  bool _shiftDown = false;
-
+  StreamSubscription<Duration>? _timerSub;
+  Duration? _tiempoRestante;
+  List<Nota> _notasData = [];
   Timer? _walkTimer;
   Timer? _animationTimer;
   Timer? _spontaneousTimer;
@@ -52,44 +50,70 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   double _opacidadGlobal = 1.0;
   double _tamano = 0.5;
   bool _evitarSuspension = false;
+  String _animal = 'serpiente';
   bool _detenidoPorMouse = false;
   bool _girando = false;
   bool _durmiendo = false;
   int _sleepFrame = 0;
   int _lastTurnMs = 0;
-  static const Map<String, Size> _imageSizes = {
-    'assets/img/1.png': Size(291, 139),
-    'assets/img/2.png': Size(337, 139),
-    'assets/img/3.png': Size(306, 139),
-    'assets/img/4.png': Size(261, 194),
-    'assets/img/5.png': Size(239, 268),
-    'assets/img/6.png': Size(279, 169),
-    'assets/img/7.png': Size(131, 102),
-    'assets/img/8.png': Size(130, 72),
-    'assets/img/9.png': Size(130, 85),
+  static const Map<String, Size> _serpienteSizes = {
+    '1.png': Size(291, 139),
+    '2.png': Size(337, 139),
+    '3.png': Size(306, 139),
+    '4.png': Size(261, 194),
+    '5.png': Size(260, 292),
+    '6.png': Size(279, 169),
+    '7.png': Size(262, 204),
+    '8.png': Size(260, 144),
+    '9.png': Size(260, 170),
   };
-  Size get _curImgSize => _imageSizes[_imagenActual]!;
+  static const Map<String, Size> _capibaraSizes = {
+    '1.png': Size(258, 176),
+    '2.png': Size(258, 174),
+    '3.png': Size(250, 176),
+    '4.png': Size(214, 230),
+    '5.png': Size(224, 204),
+    '6.png': Size(230, 200),
+    '7.png': Size(274, 152),
+    '8.png': Size(312, 176),
+    '9.png': Size(294, 182),
+  };
+  Map<String, Size> get _currentSizes {
+    switch (_animal) {
+      case 'Capybara': return _capibaraSizes;
+      default: return _serpienteSizes;
+    }
+  }
+  String get _imagenNombre {
+    if (_menuAbierto) return '5.png';
+    if (_durmiendo) return '${7 + _sleepFrame}.png';
+    if (_girando) return '6.png';
+    if (_detenidoPorMouse || _expresion == Expresion.esperando || _expresion == Expresion.alerta) {
+      return '4.png';
+    }
+    return '${_frame + 1}.png';
+  }
+  String get _imagenActual => 'assets/img/$_animal/$_imagenNombre';
+  Size get _curImgSize => _currentSizes[_imagenNombre]!;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Posición inicial segura SÍNCRONA (antes del async)
     try {
       final w = WindowsServices.getScreenWidth().toDouble();
       final h = WindowsServices.getScreenHeight().toDouble();
       _screenWidth = w;
       _screenHeight = h;
-      _screenBottom = h - 50; // estimación barra de tareas
+      _screenBottom = h - 50;
       _posX = w * 0.7;
       _posY = _screenBottom;
       _actualizarPosicionVentana();
     } catch (_) {}
-    _obtenerDimensionesPantalla(); // async: sobreescribe con valores precisos
+    _obtenerDimensionesPantalla();
     _cargarConfiguracion();
     _iniciarAnimacion();
     _iniciarAccionesEspontaneas();
-    SystemChannels.keyEvent.setMessageHandler(_handleKeyEvent);
   }
 
   @override
@@ -99,7 +123,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _animationTimer?.cancel();
     _spontaneousTimer?.cancel();
     _temporizador?.cancel();
-    SystemChannels.keyEvent.setMessageHandler(null);
+    _timerSub?.cancel();
     super.dispose();
   }
 
@@ -126,7 +150,6 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       _screenTop = 0;
     }
     _screenBottom = _screenTop + _screenHeight;
-    // fallback: si visible bounds fallaron, restar 50px para la barra de tareas
     if (_screenTop == 0 && _screenHeight >= 700) {
       try {
         final fullH = WindowsServices.getScreenHeight().toDouble();
@@ -137,12 +160,20 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _posY = _screenBottom;
     _mirandoIzq = true;
     await _actualizarPosicionVentana();
+    await _cargarNotas();
     WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarCaminata());
   }
 
-  @override
-  void didChangeMetrics() {
-    _obtenerDimensionesPantalla();
+  Future<void> _cargarNotas() async {
+    final notas = await NotaService.cargarNotas();
+    if (mounted) {
+      final ids = <String>{};
+      final unicas = <Nota>[];
+      for (final n in notas) {
+        if (ids.add(n.id)) unicas.add(n);
+      }
+      setState(() => _notasData = unicas);
+    }
   }
 
   Future<void> _cargarConfiguracion() async {
@@ -151,7 +182,9 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _opacidadGlobal = cfg.opacidad;
     _tamano = cfg.tamano;
     _evitarSuspension = cfg.evitarSuspension;
+    _animal = cfg.animal;
     if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
+    await _actualizarPosicionVentana();
   }
 
   void _iniciarCaminata() {
@@ -201,8 +234,9 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     if (_detenidoPorMouse || _girando) return;
     final paso = _velocidad;
     double nuevaX = _posX + (_mirandoIzq ? -paso : paso);
-    final leftBound = _screenLeft + _bugW / 2;
-    final rightBound = _screenLeft + _screenWidth - _bugW / 2;
+    final contW = _refW * _tamano;
+    final leftBound = _screenLeft + contW / 2;
+    final rightBound = _screenLeft + _screenWidth - contW / 2;
 
     // Mostrar 6.png ANTES de llegar a la esquina (sprite de anticipo de giro)
     final margen = paso * 6;
@@ -247,16 +281,15 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
 
   Future<void> _actualizarPosicionVentana() async {
     try {
-      final s = _curImgSize;
-      final scale = 0.85 * _tamano;
-      final scaledW = s.width * scale;
-      final scaledH = _menuAbierto ? s.height * scale : _refH * scale;
-      _posY = _posY.clamp(_screenTop + _refH * scale, _screenBottom);
+      final contW = (_refW * _tamano + 0.5).ceilToDouble();
+      final contH = (_refH * _tamano + 0.5).ceilToDouble();
+      _posY = _posY.clamp(_screenTop + contH, _screenBottom);
       if (_menuAbierto) {
-        final totalH = _menuH + scaledH;
+        const gap = 20.0;
+        final totalH = _menuH + gap + contH;
         await windowManager.setBounds(Rect.fromLTWH(_posX - _menuW / 2, _posY - totalH, _menuW, totalH));
       } else {
-        await windowManager.setBounds(Rect.fromLTWH(_posX - scaledW / 2, _posY - scaledH, scaledW, scaledH));
+        await windowManager.setBounds(Rect.fromLTWH(_posX - contW / 2, _posY - contH, contW, contH));
       }
     } catch (_) {}
   }
@@ -325,16 +358,24 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       context: context,
       builder: (ctx) => TemporizadorDialog(onIniciar: (minutos) {
         setState(() {
+          _temporizador?.cancel();
           _temporizador = TemporizadorState(
             minutos: minutos,
             onTerminar: () {
-              setState(() => _expresion = Expresion.alerta);
+              setState(() {
+                _tiempoRestante = null;
+                _expresion = Expresion.alerta;
+              });
               Future.delayed(const Duration(seconds: 3), () {
                 if (mounted) setState(() => _expresion = Expresion.normal);
               });
             },
           );
           _temporizador!.iniciar();
+          _timerSub?.cancel();
+          _timerSub = _temporizador!.stream.listen((d) {
+            if (mounted) setState(() => _tiempoRestante = d);
+          });
         });
       }),
     );
@@ -344,61 +385,37 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     await showDialog(context: context, builder: (ctx) => _ConfigDialog(estado: this));
   }
 
-  String get _imagenActual {
-    if (_menuAbierto) return 'assets/img/5.png';
-    if (_durmiendo) return 'assets/img/${7 + _sleepFrame}.png';
-    if (_girando) return 'assets/img/6.png';
-    if (_detenidoPorMouse || _expresion == Expresion.esperando || _expresion == Expresion.alerta) {
-      return 'assets/img/4.png';
-    }
-    return 'assets/img/${_frame + 1}.png';
-  }
-
   void _salir() {
     _walkTimer?.cancel();
     _animationTimer?.cancel();
     _spontaneousTimer?.cancel();
     _sleepTimer?.cancel();
     _temporizador?.cancel();
+    _timerSub?.cancel();
     WindowsServices.cleanup();
     windowManager.close();
-  }
-
-  Future<dynamic> _handleKeyEvent(dynamic message) async {
-    final map = message as Map<String, dynamic>;
-    final key = map['key'] as String? ?? '';
-    final type = map['type'] as String? ?? '';
-    if (type == 'keydown') {
-      if (key == 'Control') _ctrlDown = true;
-      if (key == 'Shift') _shiftDown = true;
-    } else if (type == 'keyup') {
-      if (key == 'Control') _ctrlDown = false;
-      if (key == 'Shift') _shiftDown = false;
-    }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final s = _curImgSize;
-    final scale = 0.85 * _tamano;
-    final scaledW = s.width * scale;
-    final scaledH = _refH * scale;
-    final imgH = s.height * scale;
+    final contW = (_refW * _tamano).ceilToDouble();
+    final contH = (_refH * _tamano).ceilToDouble();
+    final imgW = s.width * _tamano;
+    final imgH = s.height * _tamano;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Menú arriba (solo visible cuando está abierto)
-        if (_menuAbierto)
+        if (_menuAbierto) ...[
           SizedBox(
-            width: _menuW,
-              child: MenuWidget(
-                onCerrar: _cerrarMenu,
-                evitarSuspensionActivo: _evitarSuspension,
-                onToggleEvitarSuspension: _toggleEvitarSuspension,
-                durmiendoActivo: _durmiendo,
-                onToggleDormir: _toggleDormir,
-                onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
+            height: _menuH,
+            child: MenuWidget(
+              onCerrar: _cerrarMenu,
+              evitarSuspensionActivo: _evitarSuspension,
+              onToggleEvitarSuspension: _toggleEvitarSuspension,
+              durmiendoActivo: _durmiendo,
+              onToggleDormir: _toggleDormir,
+              onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
               onAbrirPrograma: () => _abrirOpcionPrograma(context),
               onTemporizador: _iniciarTemporizador,
               onNota: () => _abrirOpcionNota(context),
@@ -406,57 +423,88 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
               onSalir: _salir,
             ),
           ),
-        // Serpiente abajo (siempre visible)
+          const SizedBox(height: 20),
+        ],
         Opacity(
           opacity: _opacidadGlobal,
-          child: SizedBox(
-            width: _menuAbierto ? _menuW : scaledW,
-            height: scaledH,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: _menuAbierto ? (_menuW - scaledW) / 2 : 0,
-                  bottom: 0,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    onHover: (_) {
-                      if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
-                        setState(() {
-                          _estado = WinSnakeEstado.detenido;
-                          _expresion = Expresion.esperando;
-                          _detenidoPorMouse = true;
-                        });
-                        _walkTimer?.cancel();
-                      }
+          child: Listener(
+            onPointerDown: (_) {},
+            child: SizedBox(
+              width: _menuAbierto ? _menuW : contW,
+              height: contH,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Timer countdown
+                  if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0 && !_menuAbierto)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
+                            style: const TextStyle(color: Colors.white, fontSize: 10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Notes
+                  ..._notasData.map((n) => NotaWidget(
+                    key: ValueKey(n.id),
+                    nota: n,
+                    onCerrar: () async {
+                      await NotaService.eliminarNota(n.id);
+                      _cargarNotas();
                     },
-                    onExit: (_) {
-                      if (_detenidoPorMouse && !_menuAbierto) {
-                        setState(() {
-                          _estado = WinSnakeEstado.caminando;
-                          _expresion = Expresion.normal;
-                          _detenidoPorMouse = false;
-                        });
-                        _iniciarCaminata();
-                      }
+                    onMover: (nota) async {
+                      await NotaService.actualizarNota(nota);
+                      _cargarNotas();
                     },
-                    child: Listener(
-                      onPointerDown: _onPointerDown,
-                      onPointerUp: _onPointerUp,
-                      child: SizedBox(
-                        width: scaledW,
-                        height: scaledH,
+                  )),
+                  Positioned(
+                    left: _menuAbierto ? (_menuW - imgW) / 2 : (contW - imgW) / 2,
+                    bottom: 0,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      onHover: (_) {
+                        if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
+                          setState(() {
+                            _estado = WinSnakeEstado.detenido;
+                            _expresion = Expresion.esperando;
+                            _detenidoPorMouse = true;
+                          });
+                          _walkTimer?.cancel();
+                        }
+                      },
+                      onExit: (_) {
+                        if (_detenidoPorMouse && !_menuAbierto) {
+                          setState(() {
+                            _estado = WinSnakeEstado.caminando;
+                            _expresion = Expresion.normal;
+                            _detenidoPorMouse = false;
+                          });
+                          _iniciarCaminata();
+                        }
+                      },
+                      child: Listener(
+                        onPointerDown: _onPointerDown,
+                        onPointerUp: _onPointerUp,
                         child: Transform.flip(
                           flipX: _mirandoIzq,
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: Image.asset(_imagenActual, fit: BoxFit.contain),
+                          child: Image.asset(_imagenActual, width: imgW, height: imgH),
                         ),
                       ),
                     ),
                   ),
-                ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -566,15 +614,15 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         content: TextField(controller: ctl, maxLines: 3, decoration: const InputDecoration(hintText: 'Escribe tu nota aqui...')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          TextButton(onPressed: () {
+          TextButton(onPressed: () async {
             final t = ctl.text.trim();
             if (t.isNotEmpty) {
-              NotaService.guardarNota(t);
-              setState(() {
-                _notas.add(NotaWidget(texto: t, onCerrar: () => setState(() => _notas.clear())));
-              });
+              await NotaService.guardarNota(t);
+              await _cargarNotas();
+              if (ctx.mounted) Navigator.pop(ctx);
+            } else {
+              Navigator.pop(ctx);
             }
-            Navigator.pop(ctx);
           }, child: const Text('Guardar')),
         ],
       ),
@@ -595,6 +643,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
   late double _opacidad;
   late double _tamano;
   late bool _inicioAutomatico;
+  late String _animal;
 
   @override
   void initState() {
@@ -604,6 +653,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _opacidad = cfg.opacidad;
     _tamano = cfg.tamano;
     _inicioAutomatico = cfg.inicioAutomatico;
+    _animal = cfg.animal;
   }
 
   @override
@@ -627,6 +677,19 @@ class _ConfigDialogState extends State<_ConfigDialog> {
             const Text('Tamaño'),
             Slider(value: _tamano, min: 0.4, max: 2.0, divisions: 16,
               label: '${(_tamano * 100).round()}%', onChanged: (v) => setState(() => _tamano = v)),
+            const Divider(),
+            const Text('Mascota'),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'serpiente', label: Text('Serpiente')),
+                  ButtonSegment(value: 'Capybara', label: Text('Capybara')),
+                ],
+                selected: {_animal},
+                onSelectionChanged: (v) => setState(() => _animal = v.first),
+              ),
+            ),
             const Divider(),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
@@ -681,11 +744,13 @@ class _ConfigDialogState extends State<_ConfigDialog> {
       tamano: _tamano,
       inicioAutomatico: _inicioAutomatico,
       evitarSuspension: StorageManager.instance.configuracion.evitarSuspension,
+      animal: _animal,
     ));
     widget.estado.setState(() {
       widget.estado._velocidad = _velocidad;
       widget.estado._opacidadGlobal = _opacidad;
       widget.estado._tamano = _tamano;
+      widget.estado._animal = _animal;
     });
     widget.estado._iniciarCaminata();
     Navigator.pop(context);

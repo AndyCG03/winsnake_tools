@@ -1,29 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'storage.dart';
 import 'winsnake_widget.dart';
+import 'servicios/windows_services.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageManager.instance.init();
   await windowManager.ensureInitialized();
 
-  const windowOptions = WindowOptions(
-    size: Size(330, 580),
-    minimumSize: Size(290, 170),
-    center: false,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: true,
-    alwaysOnTop: true,
-    titleBarStyle: TitleBarStyle.hidden,
-  );
+  final cfg = StorageManager.instance.configuracion;
+  final tamano = cfg.tamano;
 
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.setAsFrameless();
-    await windowManager.setResizable(false);
-    await windowManager.show();
-  });
+  const refW = 337.0;
+  const refH = 194.0;
+  final contW = (refW * tamano + 0.5).ceilToDouble();
+  final contH = (refH * tamano + 0.5).ceilToDouble();
+
+  double screenW = 1920, screenH = 1080;
+  try {
+    screenW = WindowsServices.getScreenWidth().toDouble();
+    screenH = WindowsServices.getScreenHeight().toDouble();
+  } catch (_) {
+    try {
+      final display = await screenRetriever.getPrimaryDisplay();
+      screenW = display.size.width;
+      screenH = display.size.height;
+    } catch (_) {}
+  }
+
+  final posX = screenW * 0.7 - contW / 2;
+  final posY = screenH - 50 - contH;
+
+  await windowManager.waitUntilReadyToShow(
+    WindowOptions(
+      size: Size(contW, contH),
+      minimumSize: Size(contW, contH),
+      center: false,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      titleBarStyle: TitleBarStyle.hidden,
+    ),
+    () async {
+      await windowManager.setAsFrameless();
+      await windowManager.setResizable(false);
+      await windowManager.setPosition(Offset(posX, posY));
+      await windowManager.show();
+    },
+  );
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 

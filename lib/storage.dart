@@ -9,6 +9,7 @@ class Configuracion {
   double tamano;
   bool inicioAutomatico;
   bool evitarSuspension;
+  String animal;
 
   Configuracion({
     this.velocidad = 1.0,
@@ -17,6 +18,7 @@ class Configuracion {
     this.tamano = 0.5,
     this.inicioAutomatico = false,
     this.evitarSuspension = false,
+    this.animal = 'serpiente',
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,6 +28,7 @@ class Configuracion {
         'tamano': tamano,
         'inicioAutomatico': inicioAutomatico,
         'evitarSuspension': evitarSuspension,
+        'animal': animal,
       };
 
   factory Configuracion.fromJson(Map<String, dynamic> json) => Configuracion(
@@ -35,19 +38,22 @@ class Configuracion {
         tamano: (json['tamano'] as num?)?.toDouble() ?? 0.5,
         inicioAutomatico: json['inicioAutomatico'] as bool? ?? false,
         evitarSuspension: json['evitarSuspension'] as bool? ?? false,
+        animal: json['animal'] as String? ?? 'serpiente',
       );
 }
 
 class Nota {
+  String id;
   String texto;
   double x;
   double y;
 
-  Nota({required this.texto, this.x = 100, this.y = 100});
+  Nota({required this.id, required this.texto, this.x = 100, this.y = 100});
 
-  Map<String, dynamic> toJson() => {'texto': texto, 'x': x, 'y': y};
+  Map<String, dynamic> toJson() => {'id': id, 'texto': texto, 'x': x, 'y': y};
 
   factory Nota.fromJson(Map<String, dynamic> json) => Nota(
+        id: json['id'] as String? ?? DateTime.now().microsecondsSinceEpoch.toString(),
         texto: json['texto'] as String? ?? '',
         x: (json['x'] as num?)?.toDouble() ?? 100,
         y: (json['y'] as num?)?.toDouble() ?? 100,
