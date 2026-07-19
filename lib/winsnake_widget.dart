@@ -885,81 +885,104 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Configuración'),
-      content: SizedBox(
-        width: 320,
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
+    return Dialog(
+      child: Container(
+        width: _menuW,
+        height: _menuH,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
           children: [
-            const Text('Velocidad'),
-            Slider(value: _velocidad, min: 0.3, max: 3.0, divisions: 27,
-              label: _velocidad.toStringAsFixed(1), onChanged: (v) => setState(() => _velocidad = v)),
-            const Divider(),
-            const Text('Opacidad'),
-            Slider(value: _opacidad, min: 0.2, max: 1.0, divisions: 8,
-              label: (_opacidad * 100).round().toString(), onChanged: (v) => setState(() => _opacidad = v)),
-            const Divider(),
-            const Text('Tamaño'),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: SegmentedButton<double>(
-                segments: const [
-                  ButtonSegment(value: 0.4, label: Text('Pequeño (40%)')),
-                  ButtonSegment(value: 0.5, label: Text('Normal (50%)')),
-                ],
-                selected: {_tamano},
-                onSelectionChanged: (v) => setState(() => _tamano = v.first),
-              ),
-            ),
-            const Divider(),
-            const Text('Mascota'),
-            if (_mascotas.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('Cargando mascotas...', style: TextStyle(color: Colors.grey)),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: SegmentedButton<String>(
-                  segments: _mascotas.map((m) => ButtonSegment(value: m, label: Text(m))).toList(),
-                  selected: {_animal},
-                  onSelectionChanged: (v) => setState(() => _animal = v.first),
+            Row(
+              children: [
+                const Text('Configuración', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: [
+                  const Text('Velocidad'),
+                  Slider(value: _velocidad, min: 0.3, max: 3.0, divisions: 27,
+                    label: _velocidad.toStringAsFixed(1), onChanged: (v) => setState(() => _velocidad = v)),
+                  const Divider(),
+                  const Text('Opacidad'),
+                  Slider(value: _opacidad, min: 0.2, max: 1.0, divisions: 8,
+                    label: (_opacidad * 100).round().toString(), onChanged: (v) => setState(() => _opacidad = v)),
+                  const Divider(),
+                  const Text('Tamaño'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: SegmentedButton<double>(
+                      segments: const [
+                        ButtonSegment(value: 0.4, label: Text('Pequeño (40%)')),
+                        ButtonSegment(value: 0.5, label: Text('Normal (50%)')),
+                      ],
+                      selected: {_tamano},
+                      onSelectionChanged: (v) => setState(() => _tamano = v.first),
+                    ),
+                  ),
+                  const Divider(),
+                  const Text('Mascota'),
+                  if (_mascotas.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text('Cargando mascotas...', style: TextStyle(color: Colors.grey)),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: SegmentedButton<String>(
+                        segments: _mascotas.map((m) => ButtonSegment(value: m, label: Text(m))).toList(),
+                        selected: {_animal},
+                        onSelectionChanged: (v) => setState(() => _animal = v.first),
+                      ),
+                    ),
+                  const Divider(),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Iniciar con Windows'),
+                    value: _inicioAutomatico,
+                    onChanged: (v) {
+                      final val = v ?? false;
+                      setState(() => _inicioAutomatico = val);
+                      WindowsServices.setAutoStart(val);
+                    },
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Cerrar nota automáticamente'),
+                    subtitle: const Text('Se cierra sola tras 5 segundos'),
+                    value: _autoCerrarNotas,
+                    onChanged: (v) => setState(() => _autoCerrarNotas = v ?? false),
+                  ),
+                  const Divider(),
+                  const Text('Carpetas guardadas:'),
+                  ..._buildCarpetasList(),
+                  const Divider(),
+                  const Text('Programas guardados:'),
+                  ..._buildProgramasList(),
+                ],
               ),
-            const Divider(),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Iniciar con Windows'),
-              value: _inicioAutomatico,
-              onChanged: (v) {
-                final val = v ?? false;
-                setState(() => _inicioAutomatico = val);
-                WindowsServices.setAutoStart(val);
-              },
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Cerrar nota automáticamente'),
-              subtitle: const Text('La tarjeta de nota se cierra sola tras 5 segundos'),
-              value: _autoCerrarNotas,
-              onChanged: (v) => setState(() => _autoCerrarNotas = v ?? false),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                const SizedBox(width: 8),
+                ElevatedButton(onPressed: _guardar, child: const Text('Guardar')),
+              ],
             ),
-            const Divider(),
-            const Text('Carpetas guardadas:'),
-            ..._buildCarpetasList(),
-            const Divider(),
-            const Text('Programas guardados:'),
-            ..._buildProgramasList(),
           ],
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-        ElevatedButton(onPressed: _guardar, child: const Text('Guardar')),
-      ],
     );
   }
 
