@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'menu_widget.dart';
@@ -42,6 +44,8 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   Timer? _animationTimer;
   Timer? _spontaneousTimer;
   Timer? _sleepTimer;
+  bool _autoCerrarNotas = false;
+  Timer? _autoCerrarTimer;
 
   double _screenLeft = 0;
   double _screenTop = 0;
@@ -126,6 +130,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _spontaneousTimer?.cancel();
     _temporizador?.cancel();
     _timerSub?.cancel();
+    _autoCerrarTimer?.cancel();
     super.dispose();
   }
 
@@ -191,6 +196,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _tamano = cfg.tamano;
     _evitarSuspension = cfg.evitarSuspension;
     _animal = cfg.animal;
+    _autoCerrarNotas = cfg.autoCerrarNotas;
     if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
     await _actualizarPosicionVentana();
   }
@@ -371,9 +377,16 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   void _toggleNotaCard() {
     if (_notasData.isEmpty) return;
     if (_menuAbierto) return;
+    _autoCerrarTimer?.cancel();
+    final abriendo = _notaPagina < 0;
     setState(() {
-      _notaPagina = _notaPagina >= 0 ? -1 : 0;
+      _notaPagina = abriendo ? 0 : -1;
     });
+    if (abriendo && _autoCerrarNotas) {
+      _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
+        if (mounted) setState(() => _notaPagina = -1);
+      });
+    }
   }
 
   Widget _buildNotaCard(BuildContext context) {
@@ -399,11 +412,10 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           _iniciarCaminata();
         }
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
+        child: Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Color(nota.colorValue).withValues(alpha: 0.9),
+        color: Color(nota.colorValue),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -416,6 +428,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
               const Spacer(),
               GestureDetector(
                 onTap: () async {
+                  _autoCerrarTimer?.cancel();
                   await NotaService.eliminarNota(nota.id);
                   await _cargarNotas();
                   if (_notasData.isEmpty) {
@@ -436,7 +449,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 GestureDetector(
-                  onTap: _notaPagina > 0 ? () => setState(() => _notaPagina--) : null,
+                  onTap: _notaPagina > 0 ? () {
+                    setState(() => _notaPagina--);
+                    _autoCerrarTimer?.cancel();
+                    if (_autoCerrarNotas) _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
+                      if (mounted) setState(() => _notaPagina = -1);
+                    });
+                  } : null,
                   child: Icon(Icons.chevron_left, size: 18,
                       color: _notaPagina > 0 ? Colors.grey : Colors.grey.shade300),
                 ),
@@ -445,7 +464,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                     style: const TextStyle(fontSize: 10, color: Colors.grey)),
                 const SizedBox(width: 4),
                 GestureDetector(
-                  onTap: _notaPagina < _notasData.length - 1 ? () => setState(() => _notaPagina++) : null,
+                  onTap: _notaPagina < _notasData.length - 1 ? () {
+                    setState(() => _notaPagina++);
+                    _autoCerrarTimer?.cancel();
+                    if (_autoCerrarNotas) _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
+                      if (mounted) setState(() => _notaPagina = -1);
+                    });
+                  } : null,
                   child: Icon(Icons.chevron_right, size: 18,
                       color: _notaPagina < _notasData.length - 1 ? Colors.grey : Colors.grey.shade300),
                 ),
@@ -552,20 +577,41 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                           top: 2,
                           left: 0,
                           right: 0,
-                          child: Row(
+                          child: MouseRegion(
+                            onHover: (_) {
+                              if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
+                                setState(() {
+                                  _estado = WinSnakeEstado.detenido;
+                                  _expresion = Expresion.esperando;
+                                  _detenidoPorMouse = true;
+                                });
+                                _walkTimer?.cancel();
+                              }
+                            },
+                            onExit: (_) {
+                              if (_detenidoPorMouse && !_menuAbierto) {
+                                setState(() {
+                                  _estado = WinSnakeEstado.caminando;
+                                  _expresion = Expresion.normal;
+                                  _detenidoPorMouse = false;
+                                });
+                                _iniciarCaminata();
+                              }
+                            },
+                            child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                                  decoration: BoxDecoration(color: const Color(0xFF222222), borderRadius: BorderRadius.circular(4)),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
-                                        style: const TextStyle(color: Colors.white, fontSize: 9),
+                                        style: const TextStyle(color: Colors.white, fontSize: 9, shadows: []),
                                       ),
                                       const SizedBox(width: 2),
                                       GestureDetector(
@@ -582,18 +628,19 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                                   onTap: _toggleNotaCard,
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                    decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
+                                    decoration: BoxDecoration(color: const Color(0xFF444444), borderRadius: BorderRadius.circular(4)),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.note, size: 9, color: Colors.white70),
+                                        const Icon(Icons.note, size: 9, color: Colors.white),
                                         const SizedBox(width: 2),
-                                        Text('${_notasData.length}', style: const TextStyle(color: Colors.white70, fontSize: 8, fontWeight: FontWeight.bold)),
+                                        Text('${_notasData.length}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold, shadows: [])),
                                       ],
                                     ),
                                   ),
                                 ),
                             ],
+                          ),
                           ),
                         ),
                       Positioned(
@@ -805,6 +852,8 @@ class _ConfigDialogState extends State<_ConfigDialog> {
   late double _tamano;
   late bool _inicioAutomatico;
   late String _animal;
+  late bool _autoCerrarNotas;
+  List<String> _mascotas = [];
 
   @override
   void initState() {
@@ -815,6 +864,23 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _tamano = cfg.tamano;
     _inicioAutomatico = cfg.inicioAutomatico;
     _animal = cfg.animal;
+    _autoCerrarNotas = cfg.autoCerrarNotas;
+    _cargarMascotas();
+  }
+
+  Future<void> _cargarMascotas() async {
+    try {
+      final manifestData = await rootBundle.loadString('AssetManifest.json');
+      final manifest = Map<String, dynamic>.from(json.decode(manifestData));
+      final mascotas = manifest.keys
+          .where((k) => k.startsWith('assets/img/'))
+          .map((k) => k.split('/')[2])
+          .toSet()
+          .toList()..sort();
+      if (mounted) setState(() => _mascotas = mascotas);
+    } catch (_) {
+      if (mounted) setState(() => _mascotas = ['serpiente', 'Capybara']);
+    }
   }
 
   @override
@@ -836,21 +902,33 @@ class _ConfigDialogState extends State<_ConfigDialog> {
               label: (_opacidad * 100).round().toString(), onChanged: (v) => setState(() => _opacidad = v)),
             const Divider(),
             const Text('Tamaño'),
-            Slider(value: _tamano, min: 0.4, max: 2.0, divisions: 16,
-              label: '${(_tamano * 100).round()}%', onChanged: (v) => setState(() => _tamano = v)),
-            const Divider(),
-            const Text('Mascota'),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: SegmentedButton<String>(
+              child: SegmentedButton<double>(
                 segments: const [
-                  ButtonSegment(value: 'serpiente', label: Text('Serpiente')),
-                  ButtonSegment(value: 'Capybara', label: Text('Capybara')),
+                  ButtonSegment(value: 0.4, label: Text('Pequeño (40%)')),
+                  ButtonSegment(value: 0.5, label: Text('Normal (50%)')),
                 ],
-                selected: {_animal},
-                onSelectionChanged: (v) => setState(() => _animal = v.first),
+                selected: {_tamano},
+                onSelectionChanged: (v) => setState(() => _tamano = v.first),
               ),
             ),
+            const Divider(),
+            const Text('Mascota'),
+            if (_mascotas.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('Cargando mascotas...', style: TextStyle(color: Colors.grey)),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: SegmentedButton<String>(
+                  segments: _mascotas.map((m) => ButtonSegment(value: m, label: Text(m))).toList(),
+                  selected: {_animal},
+                  onSelectionChanged: (v) => setState(() => _animal = v.first),
+                ),
+              ),
             const Divider(),
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
@@ -861,6 +939,13 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                 setState(() => _inicioAutomatico = val);
                 WindowsServices.setAutoStart(val);
               },
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Cerrar nota automáticamente'),
+              subtitle: const Text('La tarjeta de nota se cierra sola tras 5 segundos'),
+              value: _autoCerrarNotas,
+              onChanged: (v) => setState(() => _autoCerrarNotas = v ?? false),
             ),
             const Divider(),
             const Text('Carpetas guardadas:'),
@@ -906,12 +991,14 @@ class _ConfigDialogState extends State<_ConfigDialog> {
       inicioAutomatico: _inicioAutomatico,
       evitarSuspension: StorageManager.instance.configuracion.evitarSuspension,
       animal: _animal,
+      autoCerrarNotas: _autoCerrarNotas,
     ));
     widget.estado.setState(() {
       widget.estado._velocidad = _velocidad;
       widget.estado._opacidadGlobal = _opacidad;
       widget.estado._tamano = _tamano;
       widget.estado._animal = _animal;
+      widget.estado._autoCerrarNotas = _autoCerrarNotas;
     });
     widget.estado._iniciarCaminata();
     Navigator.pop(context);
