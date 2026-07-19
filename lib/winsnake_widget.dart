@@ -14,6 +14,7 @@ const double _refW = 337.0;
 const double _refH = 292.0;
 const double _menuW = 330.0;
 const double _menuH = 350.0;
+const double _notaCardH = 80.0;
 
 enum WinSnakeEstado { caminando, detenido, asustado, saltando }
 
@@ -36,6 +37,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   StreamSubscription<Duration>? _timerSub;
   Duration? _tiempoRestante;
   List<Nota> _notasData = [];
+  int _notaPagina = -1;
   Timer? _walkTimer;
   Timer? _animationTimer;
   Timer? _spontaneousTimer;
@@ -172,7 +174,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       for (final n in notas) {
         if (ids.add(n.id)) unicas.add(n);
       }
-      setState(() => _notasData = unicas);
+      setState(() {
+        _notasData = unicas;
+        if (_notaPagina >= _notasData.length) {
+          _notaPagina = _notasData.isEmpty ? -1 : _notasData.length - 1;
+        }
+      });
+      _actualizarPosicionVentana();
     }
   }
 
@@ -283,14 +291,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     try {
       final contW = (_refW * _tamano + 0.5).ceilToDouble();
       final contH = (_refH * _tamano + 0.5).ceilToDouble();
+      const gap = 20.0;
+      final notaH = !_menuAbierto && _notasData.isNotEmpty ? _notaCardH : 0.0;
+      final baseH = contH + notaH;
+      final totalH = _menuAbierto ? _menuH + gap + baseH : baseH;
       _posY = _posY.clamp(_screenTop + contH, _screenBottom);
-      if (_menuAbierto) {
-        const gap = 20.0;
-        final totalH = _menuH + gap + contH;
-        await windowManager.setBounds(Rect.fromLTWH(_posX - _menuW / 2, _posY - totalH, _menuW, totalH));
-      } else {
-        await windowManager.setBounds(Rect.fromLTWH(_posX - contW / 2, _posY - contH, contW, contH));
-      }
+      final w = _menuAbierto ? _menuW : contW;
+      await windowManager.setBounds(Rect.fromLTWH(_posX - w / 2, _posY - totalH, w, totalH));
     } catch (_) {}
   }
 
@@ -351,6 +358,104 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     }
     setState(() => _durmiendo = nuevo);
     _actualizarPosicionVentana();
+  }
+
+  void _detenerTemporizador() {
+    _temporizador?.cancel();
+    _timerSub?.cancel();
+    _temporizador = null;
+    _tiempoRestante = null;
+    if (mounted) setState(() {});
+  }
+
+  void _toggleNotaCard() {
+    if (_notasData.isEmpty) return;
+    if (_menuAbierto) return;
+    setState(() {
+      _notaPagina = _notaPagina >= 0 ? -1 : 0;
+    });
+  }
+
+  Widget _buildNotaCard(BuildContext context) {
+    final nota = _notasData[_notaPagina];
+    return MouseRegion(
+      onHover: (_) {
+        if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
+          setState(() {
+            _estado = WinSnakeEstado.detenido;
+            _expresion = Expresion.esperando;
+            _detenidoPorMouse = true;
+          });
+          _walkTimer?.cancel();
+        }
+      },
+      onExit: (_) {
+        if (_detenidoPorMouse && !_menuAbierto) {
+          setState(() {
+            _estado = WinSnakeEstado.caminando;
+            _expresion = Expresion.normal;
+            _detenidoPorMouse = false;
+          });
+          _iniciarCaminata();
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Color(nota.colorValue).withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.note, size: 14, color: Color(nota.colorValue).withValues(alpha: 0.7)),
+              const Spacer(),
+              GestureDetector(
+                onTap: () async {
+                  await NotaService.eliminarNota(nota.id);
+                  await _cargarNotas();
+                  if (_notasData.isEmpty) {
+                    _notaPagina = -1;
+                  } else if (_notaPagina >= _notasData.length) {
+                    _notaPagina = _notasData.length - 1;
+                  }
+                },
+                child: const Icon(Icons.close, size: 16, color: Colors.grey),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(nota.texto, style: const TextStyle(fontSize: 12)),
+          if (_notasData.length > 1) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: _notaPagina > 0 ? () => setState(() => _notaPagina--) : null,
+                  child: Icon(Icons.chevron_left, size: 18,
+                      color: _notaPagina > 0 ? Colors.grey : Colors.grey.shade300),
+                ),
+                const SizedBox(width: 4),
+                Text('${_notaPagina + 1}/${_notasData.length}',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: _notaPagina < _notasData.length - 1 ? () => setState(() => _notaPagina++) : null,
+                  child: Icon(Icons.chevron_right, size: 18,
+                      color: _notaPagina < _notasData.length - 1 ? Colors.grey : Colors.grey.shade300),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    ),
+    );
   }
 
   void _iniciarTemporizador() {
@@ -425,88 +530,113 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           ),
           const SizedBox(height: 20),
         ],
-        Opacity(
-          opacity: _opacidadGlobal,
-          child: Listener(
-            onPointerDown: (_) {},
-            child: SizedBox(
-              width: _menuAbierto ? _menuW : contW,
-              height: contH,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Timer countdown
-                  if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0 && !_menuAbierto)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(4),
+        if (_notasData.isNotEmpty && !_menuAbierto)
+          SizedBox(
+            height: _notaCardH,
+            child: _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox.shrink(),
+          ),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Opacity(
+              opacity: _opacidadGlobal,
+              child: Listener(
+                onPointerDown: (_) {},
+                child: SizedBox(
+                  width: _menuAbierto ? _menuW : contW,
+                  height: contH,
+                  child: Stack(
+                    children: [
+                      if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || (_notasData.isNotEmpty && _notaPagina < 0)))
+                        Positioned(
+                          top: 2,
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
+                                        style: const TextStyle(color: Colors.white, fontSize: 9),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      GestureDetector(
+                                        onTap: _detenerTemporizador,
+                                        child: const Icon(Icons.stop, size: 10, color: Colors.redAccent),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0 && _notasData.isNotEmpty)
+                                const SizedBox(width: 4),
+                              if (_notasData.isNotEmpty)
+                                GestureDetector(
+                                  onTap: _toggleNotaCard,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                    decoration: BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(4)),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.note, size: 9, color: Colors.white70),
+                                        const SizedBox(width: 2),
+                                        Text('${_notasData.length}', style: const TextStyle(color: Colors.white70, fontSize: 8, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
-                          child: Text(
-                            '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
-                            style: const TextStyle(color: Colors.white, fontSize: 10),
+                        ),
+                      Positioned(
+                        left: _menuAbierto ? (_menuW - imgW) / 2 : (contW - imgW) / 2,
+                        bottom: 0,
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          onHover: (_) {
+                            if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
+                              setState(() {
+                                _estado = WinSnakeEstado.detenido;
+                                _expresion = Expresion.esperando;
+                                _detenidoPorMouse = true;
+                              });
+                              _walkTimer?.cancel();
+                            }
+                          },
+                          onExit: (_) {
+                            if (_detenidoPorMouse && !_menuAbierto) {
+                              setState(() {
+                                _estado = WinSnakeEstado.caminando;
+                                _expresion = Expresion.normal;
+                                _detenidoPorMouse = false;
+                              });
+                              _iniciarCaminata();
+                            }
+                          },
+                          child: Listener(
+                            onPointerDown: _onPointerDown,
+                            onPointerUp: _onPointerUp,
+                            child: Transform.flip(
+                              flipX: _mirandoIzq,
+                              child: Image.asset(_imagenActual, width: imgW, height: imgH),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  // Notes
-                  ..._notasData.map((n) => NotaWidget(
-                    key: ValueKey(n.id),
-                    nota: n,
-                    onCerrar: () async {
-                      await NotaService.eliminarNota(n.id);
-                      _cargarNotas();
-                    },
-                    onMover: (nota) async {
-                      await NotaService.actualizarNota(nota);
-                      _cargarNotas();
-                    },
-                  )),
-                  Positioned(
-                    left: _menuAbierto ? (_menuW - imgW) / 2 : (contW - imgW) / 2,
-                    bottom: 0,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      onHover: (_) {
-                        if (_estado == WinSnakeEstado.caminando && !_detenidoPorMouse && !_menuAbierto) {
-                          setState(() {
-                            _estado = WinSnakeEstado.detenido;
-                            _expresion = Expresion.esperando;
-                            _detenidoPorMouse = true;
-                          });
-                          _walkTimer?.cancel();
-                        }
-                      },
-                      onExit: (_) {
-                        if (_detenidoPorMouse && !_menuAbierto) {
-                          setState(() {
-                            _estado = WinSnakeEstado.caminando;
-                            _expresion = Expresion.normal;
-                            _detenidoPorMouse = false;
-                          });
-                          _iniciarCaminata();
-                        }
-                      },
-                      child: Listener(
-                        onPointerDown: _onPointerDown,
-                        onPointerUp: _onPointerUp,
-                        child: Transform.flip(
-                          flipX: _mirandoIzq,
-                          child: Image.asset(_imagenActual, width: imgW, height: imgH),
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ],
     );
@@ -607,24 +737,55 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
 
   void _abrirOpcionNota(BuildContext context) {
     final ctl = TextEditingController();
+    int selectedColor = 0xFFFFF9C4;
+    const colores = [0xFFFFF9C4, 0xFFFFCDD2, 0xFFC8E6C9, 0xFFBBDEFB, 0xFFFFF8E1, 0xFFE1BEE7, 0xFFB2EBF2, 0xFFD7CCC8];
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nota rapida'),
-        content: TextField(controller: ctl, maxLines: 3, decoration: const InputDecoration(hintText: 'Escribe tu nota aqui...')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          TextButton(onPressed: () async {
-            final t = ctl.text.trim();
-            if (t.isNotEmpty) {
-              await NotaService.guardarNota(t);
-              await _cargarNotas();
-              if (ctx.mounted) Navigator.pop(ctx);
-            } else {
-              Navigator.pop(ctx);
-            }
-          }, child: const Text('Guardar')),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          titlePadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          title: const Text('Nota rapida', style: TextStyle(fontSize: 14)),
+          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(controller: ctl, maxLines: 3, decoration: const InputDecoration(
+                hintText: 'Escribe tu nota aqui...',
+                isDense: true,
+                contentPadding: EdgeInsets.all(8),
+              )),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 3,
+                children: colores.map((c) => GestureDetector(
+                  onTap: () => setDialogState(() => selectedColor = c),
+                  child: Container(
+                    width: 18, height: 18,
+                    decoration: BoxDecoration(
+                      color: Color(c),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: selectedColor == c ? Colors.black : Colors.grey, width: selectedColor == c ? 2 : 1),
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(onPressed: () async {
+              final t = ctl.text.trim();
+              if (t.isNotEmpty) {
+                await NotaService.guardarNota(t, colorValue: selectedColor);
+                await _cargarNotas();
+                if (ctx.mounted) Navigator.pop(ctx);
+              } else {
+                Navigator.pop(ctx);
+              }
+            }, child: const Text('Guardar')),
+          ],
+        ),
       ),
     );
   }

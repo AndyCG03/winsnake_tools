@@ -47,16 +47,18 @@ class Nota {
   String texto;
   double x;
   double y;
+  int colorValue;
 
-  Nota({required this.id, required this.texto, this.x = 100, this.y = 100});
+  Nota({required this.id, required this.texto, this.x = 100, this.y = 100, this.colorValue = 0xFFFFF9C4});
 
-  Map<String, dynamic> toJson() => {'id': id, 'texto': texto, 'x': x, 'y': y};
+  Map<String, dynamic> toJson() => {'id': id, 'texto': texto, 'x': x, 'y': y, 'colorValue': colorValue};
 
   factory Nota.fromJson(Map<String, dynamic> json) => Nota(
         id: json['id'] as String? ?? DateTime.now().microsecondsSinceEpoch.toString(),
         texto: json['texto'] as String? ?? '',
         x: (json['x'] as num?)?.toDouble() ?? 100,
         y: (json['y'] as num?)?.toDouble() ?? 100,
+        colorValue: json['colorValue'] as int? ?? 0xFFFFF9C4,
       );
 }
 
