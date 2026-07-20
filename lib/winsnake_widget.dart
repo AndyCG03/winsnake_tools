@@ -442,7 +442,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
             ],
           ),
           const SizedBox(height: 4),
-          Text(nota.texto, style: const TextStyle(fontSize: 12, shadows: [])),
+          Text(nota.texto, style: const TextStyle(fontSize: 12, color: Colors.black, decoration: TextDecoration.none, shadows: []), maxLines: 2, overflow: TextOverflow.ellipsis),
           if (_notasData.length > 1) ...[
             const SizedBox(height: 4),
             Row(
@@ -461,7 +461,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                 ),
                 const SizedBox(width: 4),
                 Text('${_notaPagina + 1}/${_notasData.length}',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey, shadows: [])),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, decoration: TextDecoration.none, shadows: [])),
                 const SizedBox(width: 4),
                 GestureDetector(
                   onTap: _notaPagina < _notasData.length - 1 ? () {
@@ -578,7 +578,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                   height: contH,
                   child: Stack(
                     children: [
-                      if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || (_notasData.isNotEmpty && _notaPagina < 0)))
+                      if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
                         Positioned(
                           top: 2,
                           left: 0,
@@ -617,7 +617,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                                     children: [
                                       Text(
                                         '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
-                                        style: const TextStyle(color: Colors.white, fontSize: 9, shadows: []),
+                                        style: const TextStyle(color: Colors.white, fontSize: 9, decoration: TextDecoration.none, shadows: []),
                                       ),
                                       const SizedBox(width: 2),
                                       GestureDetector(
@@ -640,7 +640,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                                       children: [
                                         const Icon(Icons.note, size: 9, color: Colors.white),
                                         const SizedBox(width: 2),
-                                        Text('${_notasData.length}', style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold, shadows: [])),
+                                        Text('${_notasData.length}', style: const TextStyle(color: Colors.white, fontSize: 8, decoration: TextDecoration.none, shadows: [])),
                                       ],
                                     ),
                                   ),
