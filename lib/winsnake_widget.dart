@@ -16,7 +16,7 @@ const double _refW = 337.0;
 const double _refH = 292.0;
 const double _menuW = 330.0;
 const double _menuH = 350.0;
-const double _notaCardH = 80.0;
+const double _notaCardH = 120.0;
 
 enum WinSnakeEstado { caminando, detenido, asustado, saltando }
 
@@ -442,7 +442,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
             ],
           ),
           const SizedBox(height: 4),
-          Text(nota.texto, style: const TextStyle(fontSize: 12, color: Colors.black, decoration: TextDecoration.none, shadows: []), maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(nota.texto, style: const TextStyle(fontSize: 12, color: Colors.black87, decoration: TextDecoration.none, shadows: [])),
           if (_notasData.length > 1) ...[
             const SizedBox(height: 4),
             Row(
@@ -562,10 +562,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           const SizedBox(height: 20),
         ],
         if (_notasData.isNotEmpty && !_menuAbierto)
-          SizedBox(
-            height: _notaCardH,
-            child: _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox.shrink(),
-          ),
+          _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox(height: 80),
         Stack(
           clipBehavior: Clip.none,
           children: [
