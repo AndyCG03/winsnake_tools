@@ -16,6 +16,7 @@ const double _refW = 337.0;
 const double _refH = 292.0;
 const double _menuW = 330.0;
 const double _menuH = 350.0;
+const double _notaCardH = 80.0;
 
 enum WinSnakeEstado { caminando, detenido, asustado, saltando }
 
@@ -45,6 +46,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   Timer? _sleepTimer;
   bool _autoCerrarNotas = false;
   Timer? _autoCerrarTimer;
+  String _idioma = 'es';
+
+  static const Map<String, Map<String, String>> _lang = {
+    'es': {'nota_rapida': 'Nota rapida', 'escribe': 'Escribe tu nota aqui...', 'cancelar': 'Cancelar', 'guardar': 'Guardar'},
+    'en': {'nota_rapida': 'Quick note', 'escribe': 'Write your note here...', 'cancelar': 'Cancel', 'guardar': 'Save'},
+  };
+  String t(String key) => _lang[_idioma]?[key] ?? key;
 
   double _screenLeft = 0;
   double _screenTop = 0;
@@ -196,6 +204,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _evitarSuspension = cfg.evitarSuspension;
     _animal = cfg.animal;
     _autoCerrarNotas = cfg.autoCerrarNotas;
+    _idioma = cfg.idioma;
     if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
     await _actualizarPosicionVentana();
   }
@@ -297,7 +306,9 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       final contW = (_refW * _tamano + 0.5).ceilToDouble();
       final contH = (_refH * _tamano + 0.5).ceilToDouble();
       const gap = 20.0;
-      final totalH = _menuAbierto ? _menuH + gap + contH : contH;
+      final notaH = !_menuAbierto && _notasData.isNotEmpty ? _notaCardH : 0.0;
+      final baseH = contH + notaH;
+      final totalH = _menuAbierto ? _menuH + gap + baseH : baseH;
       _posY = _posY.clamp(_screenTop + contH, _screenBottom);
       final w = _menuAbierto ? _menuW : contW;
       await windowManager.setBounds(Rect.fromLTWH(_posX - w / 2, _posY - totalH, w, totalH));
@@ -421,7 +432,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         children: [
           Row(
             children: [
-              const Icon(Icons.note, size: 12, color: Colors.grey),
+              const Icon(Icons.note, size: 14, color: Colors.grey),
               const Spacer(),
               GestureDetector(
                 onTap: () async {
@@ -434,12 +445,12 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                     _notaPagina = _notasData.length - 1;
                   }
                 },
-                child: const Icon(Icons.close, size: 14, color: Colors.grey),
+                child: const Icon(Icons.close, size: 16, color: Colors.grey),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(nota.texto, style: const TextStyle(fontSize: 10, color: Colors.black87, decoration: TextDecoration.none, shadows: [])),
+          Text(nota.texto, style: const TextStyle(fontSize: 12, color: Colors.black, decoration: TextDecoration.none, shadows: []), maxLines: 2, overflow: TextOverflow.ellipsis),
           if (_notasData.length > 1) ...[
             const SizedBox(height: 4),
             Row(
@@ -453,7 +464,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                       if (mounted) setState(() => _notaPagina = -1);
                     });
                   } : null,
-                  child: Icon(Icons.chevron_left, size: 14,
+                  child: Icon(Icons.chevron_left, size: 18,
                       color: _notaPagina > 0 ? Colors.grey : Colors.grey.shade300),
                 ),
                 const SizedBox(width: 4),
@@ -468,7 +479,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                       if (mounted) setState(() => _notaPagina = -1);
                     });
                   } : null,
-                  child: Icon(Icons.chevron_right, size: 14,
+                  child: Icon(Icons.chevron_right, size: 18,
                       color: _notaPagina < _notasData.length - 1 ? Colors.grey : Colors.grey.shade300),
                 ),
               ],
@@ -558,6 +569,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           ),
           const SizedBox(height: 20),
         ],
+        if (_notasData.isNotEmpty && !_menuAbierto)
+          ClipRect(
+            child: SizedBox(
+              height: _notaCardH,
+              child: _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox.shrink(),
+            ),
+          ),
         Stack(
           clipBehavior: Clip.none,
           children: [
@@ -569,9 +587,8 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                   width: _menuAbierto ? _menuW : contW,
                   height: contH,
                   child: Stack(
-                    clipBehavior: Clip.none,
                     children: [
-                      if (!_menuAbierto && _notaPagina < 0 && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
+                      if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
                         Positioned(
                           top: 2,
                           left: 0,
@@ -641,13 +658,6 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                             ],
                           ),
                           ),
-                        ),
-                      if (!_menuAbierto && _notaPagina >= 0)
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          child: _buildNotaCard(context),
                         ),
                       Positioned(
                         left: _menuAbierto ? (_menuW - imgW) / 2 : (contW - imgW) / 2,
@@ -803,10 +813,10 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(controller: ctl, maxLines: 3, decoration: const InputDecoration(
-                hintText: 'Escribe tu nota aqui...',
+              TextField(controller: ctl, maxLines: 3, maxLength: 100, maxLengthEnforcement: MaxLengthEnforcement.enforced, decoration: InputDecoration(
+                hintText: t('escribe'),
                 isDense: true,
-                contentPadding: EdgeInsets.all(8),
+                contentPadding: const EdgeInsets.all(8),
               )),
               const SizedBox(height: 8),
               Wrap(
@@ -859,6 +869,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
   late bool _inicioAutomatico;
   late String _animal;
   late bool _autoCerrarNotas;
+  late String _idioma;
   List<String> _mascotas = [];
 
   @override
@@ -871,6 +882,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _inicioAutomatico = cfg.inicioAutomatico;
     _animal = cfg.animal;
     _autoCerrarNotas = cfg.autoCerrarNotas;
+    _idioma = cfg.idioma;
     _cargarMascotas();
   }
 
@@ -933,8 +945,8 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: SegmentedButton<double>(
                         segments: const [
-                          ButtonSegment(value: 0.4, label: Text('Pequeño (40%)')),
-                          ButtonSegment(value: 0.5, label: Text('Normal (50%)')),
+                          ButtonSegment(value: 0.4, label: Text('Pequeño')),
+                          ButtonSegment(value: 0.5, label: Text('Normal')),
                         ],
                         selected: {_tamano},
                         onSelectionChanged: (v) => setState(() => _tamano = v.first),
@@ -973,6 +985,19 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                       subtitle: const Text('Se cierra sola tras 5 segundos'),
                       value: _autoCerrarNotas,
                       onChanged: (v) => setState(() => _autoCerrarNotas = v ?? false),
+                    ),
+                    const Divider(),
+                    const Text('Idioma'),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'es', label: Text('Español')),
+                          ButtonSegment(value: 'en', label: Text('English')),
+                        ],
+                        selected: {_idioma},
+                        onSelectionChanged: (v) => setState(() => _idioma = v.first),
+                      ),
                     ),
                     const Divider(),
                     const Text('Carpetas guardadas:'),
@@ -1028,6 +1053,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
       evitarSuspension: StorageManager.instance.configuracion.evitarSuspension,
       animal: _animal,
       autoCerrarNotas: _autoCerrarNotas,
+      idioma: _idioma,
     ));
     widget.estado.setState(() {
       widget.estado._velocidad = _velocidad;
@@ -1035,6 +1061,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
       widget.estado._tamano = _tamano;
       widget.estado._animal = _animal;
       widget.estado._autoCerrarNotas = _autoCerrarNotas;
+      widget.estado._idioma = _idioma;
     });
     widget.estado._iniciarCaminata();
     Navigator.pop(context);

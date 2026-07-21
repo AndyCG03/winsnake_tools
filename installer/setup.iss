@@ -6,22 +6,33 @@
 #define MyAppPublisher "AndyCG03"
 #define MyAppURL "https://github.com/AndyCG03/winsnake_tools"
 #define MyAppExeName "winsnake_tools.exe"
+#define MyAppComments "Widget de escritorio con mascota animada que camina por la pantalla. Incluye notas rapidas, temporizador, acceso a carpetas y programas, y modo evitar sueno."
 
 [Setup]
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
+AppComments={#MyAppComments}
+AppContact={#MyAppPublisher}
+AppCopyright=Copyright (C) 2025 {#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 OutputDir=.\output
-OutputBaseFilename=winsnake_tools_setup
+OutputBaseFilename=winsnake_tools_setup_v{#MyAppVersion}
 SetupIconFile=..\windows\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayName={#MyAppName}
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription={#MyAppComments}
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
+DisableProgramGroupPage=yes
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"

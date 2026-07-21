@@ -11,6 +11,7 @@ class Configuracion {
   bool evitarSuspension;
   String animal;
   bool autoCerrarNotas;
+  String idioma;
 
   Configuracion({
     this.velocidad = 1.0,
@@ -21,6 +22,7 @@ class Configuracion {
     this.evitarSuspension = false,
     this.animal = 'serpiente',
     this.autoCerrarNotas = false,
+    this.idioma = 'es',
   });
 
   Map<String, dynamic> toJson() => {
@@ -32,6 +34,7 @@ class Configuracion {
         'evitarSuspension': evitarSuspension,
         'animal': animal,
         'autoCerrarNotas': autoCerrarNotas,
+        'idioma': idioma,
       };
 
   factory Configuracion.fromJson(Map<String, dynamic> json) => Configuracion(
@@ -43,6 +46,7 @@ class Configuracion {
         evitarSuspension: json['evitarSuspension'] as bool? ?? false,
         animal: json['animal'] as String? ?? 'serpiente',
         autoCerrarNotas: json['autoCerrarNotas'] as bool? ?? false,
+        idioma: json['idioma'] as String? ?? 'es',
       );
 }
 
