@@ -11,6 +11,7 @@ import 'opciones/temporizador.dart';
 import 'storage.dart';
 import 'winsnake_painter.dart';
 import 'servicios/windows_services.dart';
+import 'traduccion.dart';
 
 const double _refW = 337.0;
 const double _refH = 292.0;
@@ -47,12 +48,6 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   bool _autoCerrarNotas = false;
   Timer? _autoCerrarTimer;
   String _idioma = 'es';
-
-  static const Map<String, Map<String, String>> _lang = {
-    'es': {'nota_rapida': 'Nota rapida', 'escribe': 'Escribe tu nota aqui...', 'cancelar': 'Cancelar', 'guardar': 'Guardar'},
-    'en': {'nota_rapida': 'Quick note', 'escribe': 'Write your note here...', 'cancelar': 'Cancel', 'guardar': 'Save'},
-  };
-  String t(String key) => _lang[_idioma]?[key] ?? key;
 
   double _screenLeft = 0;
   double _screenTop = 0;
@@ -515,7 +510,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
             if (mounted) setState(() => _tiempoRestante = d);
           });
         });
-      }),
+      }, idioma: _idioma),
     );
   }
 
@@ -565,6 +560,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
               onNota: () => _abrirOpcionNota(context),
               onConfiguracion: _abrirConfiguracion,
               onSalir: _salir,
+              idioma: _idioma,
             ),
           ),
           const SizedBox(height: 20),
@@ -717,7 +713,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Abrir carpeta'),
+        title: Text(t('abrir_carpeta', _idioma)),
         children: [
           ...carpetas.map((c) => SimpleDialogOption(
             onPressed: () { WindowsServices.openFolder(c); Navigator.pop(ctx); },
@@ -730,7 +726,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                 StorageManager.instance.setCarpetas([...StorageManager.instance.carpetas, path]);
               });
             },
-            child: Text('+ Agregar carpeta', style: TextStyle(color: Theme.of(ctx).colorScheme.primary)),
+            child: Text(t('mas', _idioma), style: TextStyle(color: Theme.of(ctx).colorScheme.primary)),
           ),
         ],
       ),
@@ -742,15 +738,15 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Agregar carpeta'),
-        content: TextField(controller: ctl, decoration: const InputDecoration(hintText: 'Ruta de la carpeta')),
+        title: Text(t('agregar_carpeta', _idioma)),
+        content: TextField(controller: ctl, decoration: InputDecoration(hintText: t('ruta_carpeta', _idioma))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('cancelar', _idioma))),
           TextButton(onPressed: () {
             final p = ctl.text.trim();
             if (p.isNotEmpty) onAgregar(p);
             Navigator.pop(ctx);
-          }, child: const Text('Agregar')),
+          }, child: Text(t('agregar', _idioma))),
         ],
       ),
     );
@@ -762,7 +758,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Abrir programa'),
+        title: Text(t('abrir_programa', _idioma)),
         children: [
           ...programas.map((p) => SimpleDialogOption(
             onPressed: () { WindowsServices.openProgram(p); Navigator.pop(ctx); },
@@ -770,7 +766,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           )),
           SimpleDialogOption(
             onPressed: () { Navigator.pop(ctx); _mostrarDialogoAgregarPrograma(context); },
-            child: Text('+ Agregar programa', style: TextStyle(color: Theme.of(ctx).colorScheme.primary)),
+            child: Text(t('mas_programa', _idioma), style: TextStyle(color: Theme.of(ctx).colorScheme.primary)),
           ),
         ],
       ),
@@ -782,17 +778,17 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Agregar programa'),
-        content: TextField(controller: ctl, decoration: const InputDecoration(hintText: 'Ruta del .exe')),
+        title: Text(t('agregar_programa', _idioma)),
+        content: TextField(controller: ctl, decoration: InputDecoration(hintText: t('ruta_exe', _idioma))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('cancelar', _idioma))),
           TextButton(onPressed: () async {
             final p = ctl.text.trim();
             if (p.isNotEmpty) {
               await StorageManager.instance.setProgramas([...StorageManager.instance.programas, p]);
             }
             Navigator.pop(ctx);
-          }, child: const Text('Agregar')),
+          }, child: Text(t('agregar', _idioma))),
         ],
       ),
     );
@@ -807,14 +803,14 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           titlePadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          title: const Text('Nota rapida', style: TextStyle(fontSize: 14)),
+          title: Text(t('nota_rapida', _idioma), style: const TextStyle(fontSize: 14)),
           contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               TextField(controller: ctl, maxLines: 3, maxLength: 100, maxLengthEnforcement: MaxLengthEnforcement.enforced, decoration: InputDecoration(
-                hintText: t('escribe'),
+                hintText: t('escribe', _idioma),
                 isDense: true,
                 contentPadding: const EdgeInsets.all(8),
               )),
@@ -836,17 +832,17 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('cancelar', _idioma))),
             TextButton(onPressed: () async {
-              final t = ctl.text.trim();
-              if (t.isNotEmpty) {
-                await NotaService.guardarNota(t, colorValue: selectedColor);
+              final txt = ctl.text.trim();
+              if (txt.isNotEmpty) {
+                await NotaService.guardarNota(txt, colorValue: selectedColor);
                 await _cargarNotas();
                 if (ctx.mounted) Navigator.pop(ctx);
               } else {
                 Navigator.pop(ctx);
               }
-            }, child: const Text('Guardar')),
+            }, child: Text(t('guardar', _idioma))),
           ],
         ),
       ),
@@ -918,7 +914,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
             children: [
               Row(
                 children: [
-                  const Text('Configuración', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(t('configuracion', _idioma), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close, size: 18),
@@ -932,32 +928,32 @@ class _ConfigDialogState extends State<_ConfigDialog> {
               Expanded(
                 child: ListView(
                   children: [
-                    const Text('Velocidad'),
+                    Text(t('velocidad', _idioma)),
                     Slider(value: _velocidad, min: 0.3, max: 3.0, divisions: 27,
                       label: _velocidad.toStringAsFixed(1), onChanged: (v) => setState(() => _velocidad = v)),
                     const Divider(),
-                    const Text('Opacidad'),
+                    Text(t('opacidad', _idioma)),
                     Slider(value: _opacidad, min: 0.2, max: 1.0, divisions: 8,
                       label: (_opacidad * 100).round().toString(), onChanged: (v) => setState(() => _opacidad = v)),
                     const Divider(),
-                    const Text('Tamaño'),
+                    Text(t('tamano', _idioma)),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: SegmentedButton<double>(
-                        segments: const [
-                          ButtonSegment(value: 0.4, label: Text('Pequeño')),
-                          ButtonSegment(value: 0.5, label: Text('Normal')),
+                        segments: [
+                          ButtonSegment(value: 0.4, label: Text(t('pequeno', _idioma))),
+                          ButtonSegment(value: 0.5, label: Text(t('normal', _idioma))),
                         ],
                         selected: {_tamano},
                         onSelectionChanged: (v) => setState(() => _tamano = v.first),
                       ),
                     ),
                     const Divider(),
-                    const Text('Mascota'),
+                    Text(t('mascota', _idioma)),
                     if (_mascotas.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('Cargando mascotas...', style: TextStyle(color: Colors.grey)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(t('cargando_mascotas', _idioma), style: const TextStyle(color: Colors.grey)),
                       )
                     else
                       Padding(
@@ -971,7 +967,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                     const Divider(),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Iniciar con Windows'),
+                      title: Text(t('iniciar_windows', _idioma)),
                       value: _inicioAutomatico,
                       onChanged: (v) {
                         final val = v ?? false;
@@ -981,13 +977,13 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                     ),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Cerrar nota automáticamente'),
-                      subtitle: const Text('Se cierra sola tras 5 segundos'),
+                      title: Text(t('cerrar_nota_auto', _idioma)),
+                      subtitle: Text(t('se_cierra_sola', _idioma)),
                       value: _autoCerrarNotas,
                       onChanged: (v) => setState(() => _autoCerrarNotas = v ?? false),
                     ),
                     const Divider(),
-                    const Text('Idioma'),
+                    Text(t('idioma', _idioma)),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: SegmentedButton<String>(
@@ -1000,10 +996,10 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                       ),
                     ),
                     const Divider(),
-                    const Text('Carpetas guardadas:'),
+                    Text(t('carpetas_guardadas', _idioma)),
                     ..._buildCarpetasList(),
                     const Divider(),
-                    const Text('Programas guardados:'),
+                    Text(t('programas_guardados', _idioma)),
                     ..._buildProgramasList(),
                   ],
                 ),
@@ -1012,9 +1008,9 @@ class _ConfigDialogState extends State<_ConfigDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                  TextButton(onPressed: () => Navigator.pop(context), child: Text(t('cancelar', _idioma))),
                   const SizedBox(width: 8),
-                  ElevatedButton(onPressed: _guardar, child: const Text('Guardar')),
+                  ElevatedButton(onPressed: _guardar, child: Text(t('guardar', _idioma))),
                 ],
               ),
             ],
@@ -1026,7 +1022,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 
   List<Widget> _buildCarpetasList() {
     final list = StorageManager.instance.carpetas;
-    if (list.isEmpty) return [const Text('  (ninguna)', style: TextStyle(color: Colors.grey))];
+    if (list.isEmpty) return [Text(t('ninguna', _idioma), style: const TextStyle(color: Colors.grey))];
     return list.map((c) => ListTile(dense: true, title: Text(c, style: const TextStyle(fontSize: 12)),
       trailing: IconButton(icon: const Icon(Icons.delete, size: 16),
         onPressed: () { StorageManager.instance.setCarpetas(list.where((x) => x != c).toList()); setState(() {}); }),
@@ -1035,7 +1031,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 
   List<Widget> _buildProgramasList() {
     final list = StorageManager.instance.programas;
-    if (list.isEmpty) return [const Text('  (ninguna)', style: TextStyle(color: Colors.grey))];
+    if (list.isEmpty) return [Text(t('ninguna', _idioma), style: const TextStyle(color: Colors.grey))];
     return list.map((p) => ListTile(dense: true, title: Text(p.split('\\').last, style: const TextStyle(fontSize: 12)),
       subtitle: Text(p, style: const TextStyle(fontSize: 10)),
       trailing: IconButton(icon: const Icon(Icons.delete, size: 16),

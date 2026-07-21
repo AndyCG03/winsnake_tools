@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'traduccion.dart';
 
 class MenuWidget extends StatelessWidget {
   final VoidCallback onCerrar;
@@ -12,6 +13,7 @@ class MenuWidget extends StatelessWidget {
   final VoidCallback onNota;
   final VoidCallback onConfiguracion;
   final VoidCallback onSalir;
+  final String idioma;
 
   const MenuWidget({
     super.key,
@@ -26,6 +28,7 @@ class MenuWidget extends StatelessWidget {
     required this.onNota,
     required this.onConfiguracion,
     required this.onSalir,
+    this.idioma = 'es',
   });
 
   // Anchos fijos para alineación perfecta entre filas
@@ -80,7 +83,7 @@ class MenuWidget extends StatelessWidget {
     return [
       _MenuItem(
         icon: Icons.power_settings_new,
-        label: 'Evitar suspensión',
+        label: t('evitar_suspension', idioma),
         trailing: _Switch(
           value: evitarSuspensionActivo,
           onChanged: (_) => onToggleEvitarSuspension(),
@@ -89,7 +92,7 @@ class MenuWidget extends StatelessWidget {
       ),
       _MenuItem(
         icon: durmiendoActivo ? Icons.bedtime : Icons.bedtime_outlined,
-        label: 'Dormir',
+        label: t('dormir', idioma),
         trailing: _Switch(
           value: durmiendoActivo,
           onChanged: (_) => onToggleDormir(),
@@ -98,33 +101,33 @@ class MenuWidget extends StatelessWidget {
       ),
       _MenuItem(
         icon: Icons.folder_open,
-        label: 'Abrir carpeta',
+        label: t('abrir_carpeta', idioma),
         onTap: onAbrirCarpeta,
       ),
       _MenuItem(
         icon: Icons.play_circle_outline,
-        label: 'Abrir programa',
+        label: t('abrir_programa', idioma),
         onTap: onAbrirPrograma,
       ),
       _MenuItem(
         icon: Icons.timer_outlined,
-        label: 'Temporizador',
+        label: t('temporizador', idioma),
         onTap: onTemporizador,
       ),
       _MenuItem(
         icon: Icons.note_add_outlined,
-        label: 'Nota rápida',
+        label: t('nota_rapida', idioma),
         onTap: onNota,
       ),
       _MenuItem(
         icon: Icons.settings,
-        label: 'Configuración',
+        label: t('configuracion', idioma),
         onTap: onConfiguracion,
       ),
       const Divider(color: Colors.white12, height: 1, thickness: 1),
       _MenuItem(
         icon: Icons.exit_to_app,
-        label: 'Salir',
+        label: t('salir', idioma),
         onTap: onSalir,
         textColor: const Color(0xFFEF5350),
       ),

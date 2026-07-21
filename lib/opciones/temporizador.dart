@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../traduccion.dart';
 
 class TemporizadorState {
   final int minutos;
@@ -40,8 +41,9 @@ class TemporizadorState {
 
 class TemporizadorDialog extends StatefulWidget {
   final void Function(int minutos) onIniciar;
+  final String idioma;
 
-  const TemporizadorDialog({super.key, required this.onIniciar});
+  const TemporizadorDialog({super.key, required this.onIniciar, this.idioma = 'es'});
 
   @override
   State<TemporizadorDialog> createState() => _TemporizadorDialogState();
@@ -53,13 +55,13 @@ class _TemporizadorDialogState extends State<TemporizadorDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Temporizador'),
+      title: Text(t('temporizador', widget.idioma)),
       content: SizedBox(
         width: 200,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Minutos:'),
+            Text(t('minutos', widget.idioma)),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -95,14 +97,14 @@ class _TemporizadorDialogState extends State<TemporizadorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+          child: Text(t('cancelar', widget.idioma)),
         ),
         ElevatedButton(
           onPressed: () {
             widget.onIniciar(_minutos);
             Navigator.pop(context);
           },
-          child: const Text('Iniciar'),
+          child: Text(t('iniciar', widget.idioma)),
         ),
       ],
     );
