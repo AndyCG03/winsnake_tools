@@ -16,7 +16,6 @@ const double _refW = 337.0;
 const double _refH = 292.0;
 const double _menuW = 330.0;
 const double _menuH = 350.0;
-const double _notaCardH = 120.0;
 
 enum WinSnakeEstado { caminando, detenido, asustado, saltando }
 
@@ -298,9 +297,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       final contW = (_refW * _tamano + 0.5).ceilToDouble();
       final contH = (_refH * _tamano + 0.5).ceilToDouble();
       const gap = 20.0;
-      final notaH = !_menuAbierto && _notasData.isNotEmpty ? _notaCardH : 0.0;
-      final baseH = contH + notaH;
-      final totalH = _menuAbierto ? _menuH + gap + baseH : baseH;
+      final totalH = _menuAbierto ? _menuH + gap + contH : contH;
       _posY = _posY.clamp(_screenTop + contH, _screenBottom);
       final w = _menuAbierto ? _menuW : contW;
       await windowManager.setBounds(Rect.fromLTWH(_posX - w / 2, _posY - totalH, w, totalH));
@@ -424,7 +421,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         children: [
           Row(
             children: [
-              const Icon(Icons.note, size: 14, color: Colors.grey),
+              const Icon(Icons.note, size: 12, color: Colors.grey),
               const Spacer(),
               GestureDetector(
                 onTap: () async {
@@ -437,12 +434,12 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                     _notaPagina = _notasData.length - 1;
                   }
                 },
-                child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                child: const Icon(Icons.close, size: 14, color: Colors.grey),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(nota.texto, style: const TextStyle(fontSize: 12, color: Colors.black87, decoration: TextDecoration.none, shadows: [])),
+          Text(nota.texto, style: const TextStyle(fontSize: 10, color: Colors.black87, decoration: TextDecoration.none, shadows: [])),
           if (_notasData.length > 1) ...[
             const SizedBox(height: 4),
             Row(
@@ -456,7 +453,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                       if (mounted) setState(() => _notaPagina = -1);
                     });
                   } : null,
-                  child: Icon(Icons.chevron_left, size: 18,
+                  child: Icon(Icons.chevron_left, size: 14,
                       color: _notaPagina > 0 ? Colors.grey : Colors.grey.shade300),
                 ),
                 const SizedBox(width: 4),
@@ -471,7 +468,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                       if (mounted) setState(() => _notaPagina = -1);
                     });
                   } : null,
-                  child: Icon(Icons.chevron_right, size: 18,
+                  child: Icon(Icons.chevron_right, size: 14,
                       color: _notaPagina < _notasData.length - 1 ? Colors.grey : Colors.grey.shade300),
                 ),
               ],
@@ -561,8 +558,6 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           ),
           const SizedBox(height: 20),
         ],
-        if (_notasData.isNotEmpty && !_menuAbierto)
-          _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox(height: 80),
         Stack(
           clipBehavior: Clip.none,
           children: [
@@ -574,8 +569,9 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                   width: _menuAbierto ? _menuW : contW,
                   height: contH,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
+                      if (!_menuAbierto && _notaPagina < 0 && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
                         Positioned(
                           top: 2,
                           left: 0,
@@ -645,6 +641,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                             ],
                           ),
                           ),
+                        ),
+                      if (!_menuAbierto && _notaPagina >= 0)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: _buildNotaCard(context),
                         ),
                       Positioned(
                         left: _menuAbierto ? (_menuW - imgW) / 2 : (contW - imgW) / 2,
