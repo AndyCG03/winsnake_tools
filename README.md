@@ -45,17 +45,17 @@ Widget de escritorio para Windows con una serpiente animada que camina sobre la 
 
 | Imagen | Propósito |
 |--------|-----------|
-| `assets/img/1.png` | Frame 1 de caminar (291×139) |
-| `assets/img/2.png` | Frame 2 de caminar (337×139) |
-| `assets/img/3.png` | Frame 3 de caminar (306×139) |
-| `assets/img/4.png` | Hover/espera (261×194) |
-| `assets/img/5.png` | Salto al abrir menú (239×268) |
-| `assets/img/6.png` | Anticipo de giro (279×169) |
-| `assets/img/7.png` | Frame 1 de dormir (131×102) |
-| `assets/img/8.png` | Frame 2 de dormir (130×72) |
-| `assets/img/9.png` | Frame 3 de dormir (130×85) |
+| `assets/img/serpiente/1.png` | Frame 1 de caminar |
+| `assets/img/serpiente/2.png` | Frame 2 de caminar |
+| `assets/img/serpiente/3.png` | Frame 3 de caminar |
+| `assets/img/serpiente/4.png` | Hover/espera |
+| `assets/img/serpiente/5.png` | Salto al abrir menú |
+| `assets/img/serpiente/6.png` | Anticipo de giro |
+| `assets/img/serpiente/7.png` | Frame 1 de dormir |
+| `assets/img/serpiente/8.png` | Frame 2 de dormir |
+| `assets/img/serpiente/9.png` | Frame 3 de dormir |
 
-Todas las imágenes se renderizan con la misma altura de referencia (194px) para mantener la alineación inferior consistente.
+También existe un set de sprites alternativo en `assets/img/Capybara/` (misma nomenclatura).
 
 ## Configuración
 
@@ -72,7 +72,7 @@ Los datos se almacenan en `%APPDATA%/winsnake_tools/storage.json`:
 - **SO:** Windows 10+ (64-bit)
 - **Flutter SDK:** 3.38.6+
 - **Dart SDK:** 3.10.7+
-- **Dependencias:** window_manager 0.3.9, shared_preferences 2.5.4, screen_retriever 0.1.9, win32 5.15.0
+- **Dependencias:** window_manager 0.3.9, screen_retriever 0.1.9, win32 5.15.0
 
 ## Compilación
 
@@ -95,29 +95,23 @@ El ejecutable se genera en `build\windows\x64\runner\Debug\winsnake_tools.exe`.
 lib/
 ├── main.dart                  # Punto de entrada, ventana frameless
 ├── winsnake_widget.dart       # Widget principal, lógica de movimiento/hover/menú
-├── winsnake_painter.dart      # Painters CustomPainter (legacy)
 ├── menu_widget.dart           # Menú contextual oscuro con switches
 ├── storage.dart               # Persistencia JSON en %APPDATA%
+├── traduccion.dart            # Textos traducidos (ES/EN)
 ├── servicios/
 │   └── windows_services.dart  # FFI: SetThreadExecutionState, Registry, etc.
-├── opciones/
-│   ├── temporizador.dart      # Temporizador con Stream y diálogo de minutos
-│   └── nota_rapida.dart       # Widget post-it y servicio de persistencia
-└── configuracion/             # (reservado)
+└── opciones/
+    ├── temporizador.dart      # Temporizador con Stream y diálogo de minutos
+    └── nota_rapida.dart       # Widget post-it y servicio de persistencia
 assets/
 ├── gif/
 │   ├── 0713.gif               # Demo animada
 │   └── Screenshot 2026-07-13 131035.png
 └── img/
-    ├── 1.png                  # Frame caminar 1
-    ├── 2.png                  # Frame caminar 2
-    ├── 3.png                  # Frame caminar 3
-    ├── 4.png                  # Hover/espera
-    ├── 5.png                  # Salto al abrir menú
-    ├── 6.png                  # Anticipo de giro
-    ├── 7.png                  # Dormir frame 1
-    ├── 8.png                  # Dormir frame 2
-    └── 9.png                  # Dormir frame 3
+    ├── serpiente/
+    │   ├── 1.png .. 9.png     # Sprites serpiente
+    └── Capybara/
+        ├── 1.png .. 9.png     # Sprites capybara (alternativo)
 windows/
 └── runner/main.cpp            # Ventana inicial
 installer/

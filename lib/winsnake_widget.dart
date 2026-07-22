@@ -9,9 +9,10 @@ import 'menu_widget.dart';
 import 'opciones/nota_rapida.dart';
 import 'opciones/temporizador.dart';
 import 'storage.dart';
-import 'winsnake_painter.dart';
 import 'servicios/windows_services.dart';
 import 'traduccion.dart';
+
+enum Expresion { normal, durmiendo, esperando, alerta }
 
 const double _refW = 337.0;
 const double _refH = 292.0;
@@ -58,6 +59,8 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   double _opacidadGlobal = 1.0;
   double _tamano = 0.5;
   bool _evitarSuspension = false;
+  double _walkStep = 0.8;
+  double _lastCommitX = 0;
   String _animal = 'serpiente';
   bool _detenidoPorMouse = false;
   bool _girando = false;
@@ -170,7 +173,17 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _mirandoIzq = true;
     await _actualizarPosicionVentana();
     await _cargarNotas();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _iniciarCaminata());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _precacheImages();
+      _iniciarCaminata();
+    });
+  }
+
+  Future<void> _precacheImages() async {
+    for (int i = 1; i <= 9; i++) {
+      final asset = AssetImage('assets/img/$_animal/$i.png');
+      await precacheImage(asset, context);
+    }
   }
 
   Future<void> _cargarNotas() async {
@@ -188,6 +201,14 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         }
       });
       _actualizarPosicionVentana();
+      if (unicas.isEmpty && _detenidoPorMouse && !_menuAbierto && !_durmiendo) {
+        setState(() {
+          _estado = WinSnakeEstado.caminando;
+          _expresion = Expresion.normal;
+          _detenidoPorMouse = false;
+        });
+        _iniciarCaminata();
+      }
     }
   }
 
@@ -207,8 +228,10 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   void _iniciarCaminata() {
     _walkTimer?.cancel();
     if (_durmiendo) return;
-    final interval = (20 / _velocidad.clamp(0.3, 5.0)).round();
-    _walkTimer = Timer.periodic(Duration(milliseconds: interval), (_) {
+    final rawInterval = 20.0 / _velocidad.clamp(0.3, 5.0);
+    final intervalMs = rawInterval.clamp(16.0, 66.0).round();
+    _walkStep = _velocidad * (intervalMs / rawInterval);
+    _walkTimer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
       if (_menuAbierto || _durmiendo || _estado != WinSnakeEstado.caminando || _detenidoPorMouse) return;
       _moverSnake();
     });
@@ -249,51 +272,49 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
 
   void _moverSnake() {
     if (_detenidoPorMouse || _girando) return;
-    final paso = _velocidad;
+    final paso = _walkStep;
     double nuevaX = _posX + (_mirandoIzq ? -paso : paso);
     final contW = _refW * _tamano;
     final leftBound = _screenLeft + contW / 2;
     final rightBound = _screenLeft + _screenWidth - contW / 2;
 
-    // Mostrar 6.png ANTES de llegar a la esquina (sprite de anticipo de giro)
     final margen = paso * 6;
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_mirandoIzq && _posX - leftBound < margen && now - _lastTurnMs > 800) {
-      _walkTimer?.cancel();
-      _walkTimer = null;
       _lastTurnMs = now;
+      _lastCommitX = _posX;
       setState(() => _girando = true);
       _actualizarPosicionVentana();
       Future.delayed(const Duration(milliseconds: 250), () {
         if (!mounted) return;
         setState(() => _girando = false);
-        if (!_detenidoPorMouse && !_menuAbierto) _iniciarCaminata();
       });
       return;
     }
     if (!_mirandoIzq && rightBound - _posX < margen && now - _lastTurnMs > 800) {
-      _walkTimer?.cancel();
-      _walkTimer = null;
       _lastTurnMs = now;
+      _lastCommitX = _posX;
       setState(() => _girando = true);
       _actualizarPosicionVentana();
       Future.delayed(const Duration(milliseconds: 250), () {
         if (!mounted) return;
         setState(() => _girando = false);
-        if (!_detenidoPorMouse && !_menuAbierto) _iniciarCaminata();
       });
       return;
     }
 
     if (nuevaX <= leftBound) {
       nuevaX = leftBound;
-      _mirandoIzq = false;
+      setState(() => _mirandoIzq = false);
     } else if (nuevaX >= rightBound) {
       nuevaX = rightBound;
-      _mirandoIzq = true;
+      setState(() => _mirandoIzq = true);
     }
     _posX = nuevaX;
-    _actualizarPosicionVentana();
+    if ((_posX - _lastCommitX).abs() >= 1.0) {
+      _lastCommitX = _posX;
+      _actualizarPosicionVentana();
+    }
   }
 
   Future<void> _actualizarPosicionVentana() async {
@@ -702,7 +723,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                             onPointerUp: _onPointerUp,
                             child: Transform.flip(
                               flipX: _mirandoIzq,
-                              child: Image.asset(_imagenActual, width: imgW, height: imgH),
+                              child: Image.asset(_imagenActual, width: imgW, height: imgH, cacheWidth: imgW.ceil(), cacheHeight: imgH.ceil()),
                             ),
                           ),
                         ),
