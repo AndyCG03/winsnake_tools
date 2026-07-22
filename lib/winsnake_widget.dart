@@ -542,50 +542,67 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     final contH = (_refH * _tamano).ceilToDouble();
     final imgW = s.width * _tamano;
     final imgH = s.height * _tamano;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_menuAbierto) ...[
-          SizedBox(
-            height: _menuH,
-            child: MenuWidget(
-              onCerrar: _cerrarMenu,
-              evitarSuspensionActivo: _evitarSuspension,
-              onToggleEvitarSuspension: _toggleEvitarSuspension,
-              durmiendoActivo: _durmiendo,
-              onToggleDormir: _toggleDormir,
-              onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
-              onAbrirPrograma: () => _abrirOpcionPrograma(context),
-              onTemporizador: _iniciarTemporizador,
-              onNota: () => _abrirOpcionNota(context),
-              onConfiguracion: _abrirConfiguracion,
-              onSalir: _salir,
-              idioma: _idioma,
+    const _gap = 20.0;
+    final snakeTop = _menuAbierto
+        ? _menuH + _gap
+        : (_notasData.isNotEmpty ? _notaCardH : 0.0);
+    final totalH = _menuAbierto
+        ? _menuH + _gap + contH
+        : contH + (_notasData.isNotEmpty ? _notaCardH : 0.0);
+
+    return SizedBox(
+      width: _menuAbierto ? _menuW : contW,
+      height: totalH,
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          if (_menuAbierto)
+            Positioned(
+              top: 0, left: 0, right: 0,
+              height: _menuH,
+              child: MenuWidget(
+                onCerrar: _cerrarMenu,
+                evitarSuspensionActivo: _evitarSuspension,
+                onToggleEvitarSuspension: _toggleEvitarSuspension,
+                durmiendoActivo: _durmiendo,
+                onToggleDormir: _toggleDormir,
+                onAbrirCarpeta: () => _abrirOpcionCarpeta(context),
+                onAbrirPrograma: () => _abrirOpcionPrograma(context),
+                onTemporizador: _iniciarTemporizador,
+                onNota: () => _abrirOpcionNota(context),
+                onConfiguracion: _abrirConfiguracion,
+                onSalir: _salir,
+                idioma: _idioma,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
-        if (_notasData.isNotEmpty && !_menuAbierto)
-          ClipRect(
-            child: SizedBox(
+          if (_notasData.isNotEmpty && !_menuAbierto)
+            Positioned(
+              top: 0, left: 0, right: 0,
               height: _notaCardH,
-              child: _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox.shrink(),
-            ),
-          ),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Opacity(
-              opacity: _opacidadGlobal,
-              child: Listener(
-                onPointerDown: (_) {},
+              child: ClipRect(
                 child: SizedBox(
-                  width: _menuAbierto ? _menuW : contW,
-                  height: contH,
-                  child: Stack(
-                    children: [
-                      if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
-                        Positioned(
+                  height: _notaCardH,
+                  child: _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          Positioned(
+            top: snakeTop,
+            left: 0,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Opacity(
+                  opacity: _opacidadGlobal,
+                  child: Listener(
+                    onPointerDown: (_) {},
+                    child: SizedBox(
+                      width: _menuAbierto ? _menuW : contW,
+                      height: contH,
+                      child: Stack(
+                        children: [
+                          if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
+                            Positioned(
                           top: 2,
                           left: 0,
                           right: 0,
@@ -690,15 +707,17 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                           ),
                         ),
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
-    );
+    ),
+  );
   }
 
   // --- Dialog methods (same as before) ---
