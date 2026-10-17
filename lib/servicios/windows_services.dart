@@ -105,6 +105,14 @@ class WindowsServices {
     }
   }
 
+  static void playAlertSound() {
+    try {
+      final user32 = DynamicLibrary.open('user32.dll');
+      final messageBeep = user32.lookupFunction<Int32 Function(Uint32), int Function(int)>('MessageBeep');
+      messageBeep(MB_ICONASTERISK);
+    } catch (_) {}
+  }
+
   static void cleanup() {
     setAvoidSleep(false);
   }

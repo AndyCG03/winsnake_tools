@@ -36,6 +36,9 @@ const Map<String, Map<String, String>> _lang = {
     'mas': '+ Agregar carpeta',
     'mas_programa': '+ Agregar programa',
     'winsnake_tools': 'WinSnake Tools',
+    'tiempo_terminado': '¡Tiempo!',
+    'serpiente': 'Serpiente',
+    'Capybara': 'Capybara',
   },
   'en': {
     'nota_rapida': 'Quick note',
@@ -74,6 +77,9 @@ const Map<String, Map<String, String>> _lang = {
     'mas': '+ Add folder',
     'mas_programa': '+ Add program',
     'winsnake_tools': 'WinSnake Tools',
+    'tiempo_terminado': 'Time up!',
+    'serpiente': 'Snake',
+    'Capybara': 'Capybara',
   },
 };
 

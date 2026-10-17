@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,7 +31,7 @@ class WinSnakeWidget extends StatefulWidget {
 class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObserver {
   double _posX = 0;
   double _posY = 0;
-  bool _mirandoIzq = false;
+  bool _mirandoIzq = true;
   WinSnakeEstado _estado = WinSnakeEstado.caminando;
   Expresion _expresion = Expresion.normal;
   int _frame = 0;
@@ -40,15 +39,18 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   TemporizadorState? _temporizador;
   StreamSubscription<Duration>? _timerSub;
   Duration? _tiempoRestante;
+  bool _alertaTiempoActiva = false;
   List<Nota> _notasData = [];
   int _notaPagina = -1;
   Timer? _walkTimer;
   Timer? _animationTimer;
   Timer? _spontaneousTimer;
   Timer? _sleepTimer;
-  bool _autoCerrarNotas = false;
   Timer? _autoCerrarTimer;
+  Timer? _metricsDebounce;
+  bool _autoCerrarNotas = false;
   String _idioma = 'es';
+  bool _initialRefreshDone = false;
 
   double _screenLeft = 0;
   double _screenTop = 0;
@@ -91,19 +93,26 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   };
   Map<String, Size> get _currentSizes {
     switch (_animal) {
-      case 'Capybara': return _capibaraSizes;
-      default: return _serpienteSizes;
+      case 'Capybara':
+        return _capibaraSizes;
+      default:
+        return _serpienteSizes;
     }
   }
+
   String get _imagenNombre {
-    if (_menuAbierto) return '5.png';
+    if (_menuAbierto || _estado == WinSnakeEstado.saltando) return '5.png';
     if (_durmiendo) return '${7 + _sleepFrame}.png';
     if (_girando) return '6.png';
-    if (_detenidoPorMouse || _expresion == Expresion.esperando || _expresion == Expresion.alerta) {
+    if (_detenidoPorMouse ||
+        _estado == WinSnakeEstado.asustado ||
+        _expresion == Expresion.esperando ||
+        _expresion == Expresion.alerta) {
       return '4.png';
     }
     return '${_frame + 1}.png';
   }
+
   String get _imagenActual => 'assets/img/$_animal/$_imagenNombre';
   Size get _curImgSize => _currentSizes[_imagenNombre]!;
 
@@ -111,6 +120,8 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _cargarConfiguracionSync();
+    _cargarNotasSync();
     try {
       final w = WindowsServices.getScreenWidth().toDouble();
       final h = WindowsServices.getScreenHeight().toDouble();
@@ -119,12 +130,25 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
       _screenBottom = h - 50;
       _posX = w * 0.7;
       _posY = _screenBottom;
-      _actualizarPosicionVentana();
+      _lastCommitX = _posX;
     } catch (_) {}
     _obtenerDimensionesPantalla();
-    _cargarConfiguracion();
     _iniciarAnimacion();
     _iniciarAccionesEspontaneas();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _precacheImages();
+  }
+
+  @override
+  void didChangeMetrics() {
+    _metricsDebounce?.cancel();
+    _metricsDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) _obtenerDimensionesPantalla(resetPositionX: false);
+    });
   }
 
   @override
@@ -133,13 +157,40 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _walkTimer?.cancel();
     _animationTimer?.cancel();
     _spontaneousTimer?.cancel();
+    _sleepTimer?.cancel();
     _temporizador?.cancel();
     _timerSub?.cancel();
     _autoCerrarTimer?.cancel();
+    _metricsDebounce?.cancel();
     super.dispose();
   }
 
-  Future<void> _obtenerDimensionesPantalla() async {
+  void _cargarConfiguracionSync() {
+    final cfg = StorageManager.instance.configuracion;
+    _velocidad = cfg.velocidad;
+    _opacidadGlobal = cfg.opacidad;
+    _tamano = cfg.tamano;
+    _evitarSuspension = cfg.evitarSuspension;
+    _animal = cfg.animal;
+    _autoCerrarNotas = cfg.autoCerrarNotas;
+    _idioma = cfg.idioma;
+    if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
+  }
+
+  void _cargarNotasSync() {
+    final notas = StorageManager.instance.notas;
+    final ids = <String>{};
+    final unicas = <Nota>[];
+    for (final n in notas) {
+      if (ids.add(n.id)) unicas.add(n);
+    }
+    _notasData = unicas;
+    if (_notaPagina >= _notasData.length) {
+      _notaPagina = -1;
+    }
+  }
+
+  Future<void> _obtenerDimensionesPantalla({bool resetPositionX = true}) async {
     try {
       _screenWidth = WindowsServices.getScreenWidth().toDouble();
       _screenHeight = WindowsServices.getScreenHeight().toDouble();
@@ -168,21 +219,34 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         if (_screenHeight == fullH) _screenBottom = _screenTop + fullH - 50;
       } catch (_) {}
     }
-    _posX = _screenLeft + _screenWidth * 0.7;
+    final contW = (_refW * _tamano + 0.5).ceilToDouble();
+    if (resetPositionX) {
+      _posX = _screenLeft + _screenWidth * 0.7;
+      _mirandoIzq = true;
+    } else {
+      final leftBound = _screenLeft + contW / 2;
+      final rightBound = _screenLeft + _screenWidth - contW / 2;
+      _posX = _posX.clamp(leftBound, rightBound);
+    }
     _posY = _screenBottom;
-    _mirandoIzq = true;
-    await _actualizarPosicionVentana();
-    await _cargarNotas();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _precacheImages();
+    _lastCommitX = _posX;
+    final needsRefresh = !_initialRefreshDone;
+    _initialRefreshDone = true;
+    await _actualizarPosicionVentana(forceRefresh: needsRefresh);
+    if (!mounted) return;
+    setState(() {});
+    if (!_menuAbierto && !_durmiendo && !_detenidoPorMouse) {
       _iniciarCaminata();
-    });
+    }
   }
 
   Future<void> _precacheImages() async {
     for (int i = 1; i <= 9; i++) {
+      if (!mounted) return;
       final asset = AssetImage('assets/img/$_animal/$i.png');
-      await precacheImage(asset, context);
+      try {
+        await precacheImage(asset, context);
+      } catch (_) {}
     }
   }
 
@@ -200,7 +264,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           _notaPagina = _notasData.isEmpty ? -1 : _notasData.length - 1;
         }
       });
-      _actualizarPosicionVentana();
+      await _actualizarPosicionVentana();
       if (unicas.isEmpty && _detenidoPorMouse && !_menuAbierto && !_durmiendo) {
         setState(() {
           _estado = WinSnakeEstado.caminando;
@@ -210,19 +274,6 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         _iniciarCaminata();
       }
     }
-  }
-
-  Future<void> _cargarConfiguracion() async {
-    final cfg = StorageManager.instance.configuracion;
-    _velocidad = cfg.velocidad;
-    _opacidadGlobal = cfg.opacidad;
-    _tamano = cfg.tamano;
-    _evitarSuspension = cfg.evitarSuspension;
-    _animal = cfg.animal;
-    _autoCerrarNotas = cfg.autoCerrarNotas;
-    _idioma = cfg.idioma;
-    if (_evitarSuspension) WindowsServices.setAvoidSleep(true);
-    await _actualizarPosicionVentana();
   }
 
   void _iniciarCaminata() {
@@ -249,22 +300,28 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   void _iniciarAccionesEspontaneas() {
     _spontaneousTimer?.cancel();
     _spontaneousTimer = Timer.periodic(const Duration(seconds: 6), (_) {
-      if (_menuAbierto || _girando || _durmiendo || _estado != WinSnakeEstado.caminando || !mounted) return;
+      if (_menuAbierto || _girando || _durmiendo || _detenidoPorMouse || _estado != WinSnakeEstado.caminando || !mounted) return;
       final rng = Random().nextInt(100);
       if (rng < 5) {
         setState(() => _expresion = Expresion.esperando);
         Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted && !_menuAbierto) setState(() => _expresion = Expresion.normal);
+          if (mounted && !_menuAbierto && !_durmiendo && !_alertaTiempoActiva) {
+            setState(() => _expresion = Expresion.normal);
+          }
         });
       } else if (rng < 10) {
         setState(() => _estado = WinSnakeEstado.saltando);
         Future.delayed(const Duration(milliseconds: 400), () {
-          if (mounted) setState(() => _estado = WinSnakeEstado.caminando);
+          if (mounted && !_menuAbierto && !_durmiendo && !_detenidoPorMouse) {
+            setState(() => _estado = WinSnakeEstado.caminando);
+          }
         });
       } else if (rng < 15) {
         setState(() => _estado = WinSnakeEstado.asustado);
         Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) setState(() => _estado = WinSnakeEstado.caminando);
+          if (mounted && !_menuAbierto && !_durmiendo && !_detenidoPorMouse) {
+            setState(() => _estado = WinSnakeEstado.caminando);
+          }
         });
       }
     });
@@ -274,7 +331,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     if (_detenidoPorMouse || _girando) return;
     final paso = _walkStep;
     double nuevaX = _posX + (_mirandoIzq ? -paso : paso);
-    final contW = _refW * _tamano;
+    final contW = (_refW * _tamano + 0.5).ceilToDouble();
     final leftBound = _screenLeft + contW / 2;
     final rightBound = _screenLeft + _screenWidth - contW / 2;
 
@@ -317,17 +374,23 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     }
   }
 
-  Future<void> _actualizarPosicionVentana() async {
+  Future<void> _actualizarPosicionVentana({bool forceRefresh = false}) async {
     try {
       final contW = (_refW * _tamano + 0.5).ceilToDouble();
       final contH = (_refH * _tamano + 0.5).ceilToDouble();
       const gap = 20.0;
-      final notaH = !_menuAbierto && _notasData.isNotEmpty ? _notaCardH : 0.0;
+      final mostrarNota = !_menuAbierto && _notasData.isNotEmpty && _notaPagina >= 0;
+      final notaH = mostrarNota ? _notaCardH : 0.0;
       final baseH = contH + notaH;
       final totalH = _menuAbierto ? _menuH + gap + baseH : baseH;
       _posY = _posY.clamp(_screenTop + contH, _screenBottom);
       final w = _menuAbierto ? _menuW : contW;
-      await windowManager.setBounds(Rect.fromLTWH(_posX - w / 2, _posY - totalH, w, totalH));
+      final left = _posX - w / 2;
+      final top = _posY - totalH;
+      if (forceRefresh) {
+        await windowManager.setBounds(Rect.fromLTWH(left, top, w + 1, totalH));
+      }
+      await windowManager.setBounds(Rect.fromLTWH(left, top, w, totalH));
     } catch (_) {}
   }
 
@@ -342,7 +405,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
         _expresion = Expresion.esperando;
       } else if (!_durmiendo) {
         _estado = WinSnakeEstado.caminando;
-        _expresion = Expresion.normal;
+        _expresion = _alertaTiempoActiva ? Expresion.alerta : Expresion.normal;
       }
     });
     if (!abriendo && !_detenidoPorMouse && !_durmiendo) _iniciarCaminata();
@@ -395,7 +458,14 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _timerSub?.cancel();
     _temporizador = null;
     _tiempoRestante = null;
-    if (mounted) setState(() {});
+    _alertaTiempoActiva = false;
+    if (mounted) {
+      setState(() {
+        if (!_menuAbierto && !_durmiendo) {
+          _expresion = Expresion.normal;
+        }
+      });
+    }
   }
 
   void _toggleNotaCard() {
@@ -406,9 +476,13 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     setState(() {
       _notaPagina = abriendo ? 0 : -1;
     });
+    _actualizarPosicionVentana();
     if (abriendo && _autoCerrarNotas) {
       _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _notaPagina = -1);
+        if (mounted) {
+          setState(() => _notaPagina = -1);
+          _actualizarPosicionVentana();
+        }
       });
     }
   }
@@ -436,102 +510,147 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
           _iniciarCaminata();
         }
       },
-        child: Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Color(nota.colorValue),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.note, size: 14, color: Colors.grey),
-              const Spacer(),
-              GestureDetector(
-                onTap: () async {
-                  _autoCerrarTimer?.cancel();
-                  await NotaService.eliminarNota(nota.id);
-                  await _cargarNotas();
-                  if (_notasData.isEmpty) {
-                    _notaPagina = -1;
-                  } else if (_notaPagina >= _notasData.length) {
-                    _notaPagina = _notasData.length - 1;
-                  }
-                },
-                child: const Icon(Icons.close, size: 16, color: Colors.grey),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(nota.texto, style: const TextStyle(fontSize: 12, color: Colors.black, decoration: TextDecoration.none, shadows: []), maxLines: 2, overflow: TextOverflow.ellipsis),
-          if (_notasData.length > 1) ...[
-            const SizedBox(height: 4),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Color(nota.colorValue),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const Icon(Icons.note, size: 14, color: Colors.grey),
+                const Spacer(),
                 GestureDetector(
-                  onTap: _notaPagina > 0 ? () {
-                    setState(() => _notaPagina--);
+                  onTap: () async {
                     _autoCerrarTimer?.cancel();
-                    if (_autoCerrarNotas) _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
-                      if (mounted) setState(() => _notaPagina = -1);
-                    });
-                  } : null,
-                  child: Icon(Icons.chevron_left, size: 18,
-                      color: _notaPagina > 0 ? Colors.grey : Colors.grey.shade300),
-                ),
-                const SizedBox(width: 4),
-                Text('${_notaPagina + 1}/${_notasData.length}',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey, decoration: TextDecoration.none, shadows: [])),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: _notaPagina < _notasData.length - 1 ? () {
-                    setState(() => _notaPagina++);
-                    _autoCerrarTimer?.cancel();
-                    if (_autoCerrarNotas) _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
-                      if (mounted) setState(() => _notaPagina = -1);
-                    });
-                  } : null,
-                  child: Icon(Icons.chevron_right, size: 18,
-                      color: _notaPagina < _notasData.length - 1 ? Colors.grey : Colors.grey.shade300),
+                    await NotaService.eliminarNota(nota.id);
+                    await _cargarNotas();
+                    if (_notasData.isEmpty) {
+                      _notaPagina = -1;
+                    } else if (_notaPagina >= _notasData.length) {
+                      _notaPagina = _notasData.length - 1;
+                    }
+                    if (mounted) {
+                      setState(() {});
+                      _actualizarPosicionVentana();
+                    }
+                  },
+                  child: const Icon(Icons.close, size: 16, color: Colors.grey),
                 ),
               ],
             ),
+            const SizedBox(height: 4),
+            Text(
+              nota.texto,
+              style: const TextStyle(fontSize: 12, color: Colors.black, decoration: TextDecoration.none, shadows: []),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (_notasData.length > 1) ...[
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: _notaPagina > 0
+                        ? () {
+                            setState(() => _notaPagina--);
+                            _autoCerrarTimer?.cancel();
+                            if (_autoCerrarNotas) {
+                              _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
+                                if (mounted) {
+                                  setState(() => _notaPagina = -1);
+                                  _actualizarPosicionVentana();
+                                }
+                              });
+                            }
+                          }
+                        : null,
+                    child: Icon(
+                      Icons.chevron_left,
+                      size: 18,
+                      color: _notaPagina > 0 ? Colors.grey : Colors.grey.shade300,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_notaPagina + 1}/${_notasData.length}',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, decoration: TextDecoration.none, shadows: []),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: _notaPagina < _notasData.length - 1
+                        ? () {
+                            setState(() => _notaPagina++);
+                            _autoCerrarTimer?.cancel();
+                            if (_autoCerrarNotas) {
+                              _autoCerrarTimer = Timer(const Duration(seconds: 5), () {
+                                if (mounted) {
+                                  setState(() => _notaPagina = -1);
+                                  _actualizarPosicionVentana();
+                                }
+                              });
+                            }
+                          }
+                        : null,
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: _notaPagina < _notasData.length - 1 ? Colors.grey : Colors.grey.shade300,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
     );
   }
 
   void _iniciarTemporizador() {
     showDialog(
       context: context,
-      builder: (ctx) => TemporizadorDialog(onIniciar: (minutos) {
-        setState(() {
-          _temporizador?.cancel();
-          _temporizador = TemporizadorState(
-            minutos: minutos,
-            onTerminar: () {
-              setState(() {
-                _tiempoRestante = null;
-                _expresion = Expresion.alerta;
-              });
-              Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) setState(() => _expresion = Expresion.normal);
-              });
-            },
-          );
-          _temporizador!.iniciar();
-          _timerSub?.cancel();
-          _timerSub = _temporizador!.stream.listen((d) {
-            if (mounted) setState(() => _tiempoRestante = d);
+      builder: (ctx) => TemporizadorDialog(
+        onIniciar: (minutos) {
+          setState(() {
+            _temporizador?.cancel();
+            _alertaTiempoActiva = false;
+            _temporizador = TemporizadorState(
+              minutos: minutos,
+              onTerminar: () {
+                WindowsServices.playAlertSound();
+                if (!mounted) return;
+                setState(() {
+                  _tiempoRestante = null;
+                  _alertaTiempoActiva = true;
+                  _expresion = Expresion.alerta;
+                });
+                Future.delayed(const Duration(seconds: 4), () {
+                  if (mounted) {
+                    setState(() {
+                      _alertaTiempoActiva = false;
+                      if (!_menuAbierto && !_durmiendo) {
+                        _expresion = Expresion.normal;
+                      }
+                    });
+                  }
+                });
+              },
+            );
+            _temporizador!.iniciar();
+            _timerSub?.cancel();
+            _timerSub = _temporizador!.stream.listen((d) {
+              if (mounted) setState(() => _tiempoRestante = d);
+            });
           });
-        });
-      }, idioma: _idioma),
+        },
+        idioma: _idioma,
+      ),
     );
   }
 
@@ -550,6 +669,8 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
     _animationTimer?.cancel();
     _spontaneousTimer?.cancel();
     _sleepTimer?.cancel();
+    _autoCerrarTimer?.cancel();
+    _metricsDebounce?.cancel();
     _temporizador?.cancel();
     _timerSub?.cancel();
     WindowsServices.cleanup();
@@ -559,27 +680,28 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
   @override
   Widget build(BuildContext context) {
     final s = _curImgSize;
-    final contW = (_refW * _tamano).ceilToDouble();
-    final contH = (_refH * _tamano).ceilToDouble();
+    final contW = (_refW * _tamano + 0.5).ceilToDouble();
+    final contH = (_refH * _tamano + 0.5).ceilToDouble();
     final imgW = s.width * _tamano;
     final imgH = s.height * _tamano;
-    const _gap = 20.0;
-    final snakeTop = _menuAbierto
-        ? _menuH + _gap
-        : (_notasData.isNotEmpty ? _notaCardH : 0.0);
-    final totalH = _menuAbierto
-        ? _menuH + _gap + contH
-        : contH + (_notasData.isNotEmpty ? _notaCardH : 0.0);
+    const gap = 20.0;
+    final mostrarNota = !_menuAbierto && _notasData.isNotEmpty && _notaPagina >= 0;
+    final notaH = mostrarNota ? _notaCardH : 0.0;
+    final totalH = _menuAbierto ? _menuH + gap + contH : contH + notaH;
+    final tieneTemporizadorActivo = _tiempoRestante != null && _tiempoRestante!.inSeconds > 0;
+    final mostrarBadges = !_menuAbierto && (tieneTemporizadorActivo || _alertaTiempoActiva || _notasData.isNotEmpty);
 
     return SizedBox(
       width: _menuAbierto ? _menuW : contW,
       height: totalH,
       child: Stack(
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.none,
         children: [
           if (_menuAbierto)
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               height: _menuH,
               child: MenuWidget(
                 onCerrar: _cerrarMenu,
@@ -596,34 +718,36 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                 idioma: _idioma,
               ),
             ),
-          if (_notasData.isNotEmpty && !_menuAbierto)
+          if (mostrarNota)
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               height: _notaCardH,
               child: ClipRect(
                 child: SizedBox(
                   height: _notaCardH,
-                  child: _notaPagina >= 0 ? _buildNotaCard(context) : const SizedBox.shrink(),
+                  child: _buildNotaCard(context),
                 ),
               ),
             ),
           Positioned(
-            top: snakeTop,
+            bottom: 0,
             left: 0,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Opacity(
-                  opacity: _opacidadGlobal,
-                  child: Listener(
-                    onPointerDown: (_) {},
-                    child: SizedBox(
-                      width: _menuAbierto ? _menuW : contW,
-                      height: contH,
-                      child: Stack(
-                        children: [
-                          if (!_menuAbierto && ((_tiempoRestante != null && _tiempoRestante!.inSeconds > 0) || _notasData.isNotEmpty))
-                            Positioned(
+            right: 0,
+            height: contH,
+            child: Opacity(
+              opacity: _opacidadGlobal,
+              child: Listener(
+                onPointerDown: (_) {},
+                child: SizedBox(
+                  width: _menuAbierto ? _menuW : contW,
+                  height: contH,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (mostrarBadges)
+                        Positioned(
                           top: 2,
                           left: 0,
                           right: 0,
@@ -649,48 +773,85 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                               }
                             },
                             child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(color: const Color(0xFF222222), borderRadius: BorderRadius.circular(4)),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
-                                        style: const TextStyle(color: Colors.white, fontSize: 9, decoration: TextDecoration.none, shadows: []),
-                                      ),
-                                      const SizedBox(width: 2),
-                                      GestureDetector(
-                                        onTap: _detenerTemporizador,
-                                        child: const Icon(Icons.stop, size: 10, color: Colors.redAccent),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              if (_tiempoRestante != null && _tiempoRestante!.inSeconds > 0 && _notasData.isNotEmpty)
-                                const SizedBox(width: 4),
-                              if (_notasData.isNotEmpty)
-                                GestureDetector(
-                                  onTap: _toggleNotaCard,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                                    decoration: BoxDecoration(color: const Color(0xFF444444), borderRadius: BorderRadius.circular(4)),
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (tieneTemporizadorActivo)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF222222),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.note, size: 9, color: Colors.white),
+                                        Text(
+                                          '${_tiempoRestante!.inMinutes}:${(_tiempoRestante!.inSeconds % 60).toString().padLeft(2, '0')}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            decoration: TextDecoration.none,
+                                            shadows: [],
+                                          ),
+                                        ),
                                         const SizedBox(width: 2),
-                                        Text('${_notasData.length}', style: const TextStyle(color: Colors.white, fontSize: 8, decoration: TextDecoration.none, shadows: [])),
+                                        GestureDetector(
+                                          onTap: _detenerTemporizador,
+                                          child: const Icon(Icons.stop, size: 10, color: Colors.redAccent),
+                                        ),
                                       ],
                                     ),
+                                  )
+                                else if (_alertaTiempoActiva)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.redAccent,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      t('tiempo_terminado', _idioma),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: TextDecoration.none,
+                                        shadows: [],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                            ],
-                          ),
+                                if ((tieneTemporizadorActivo || _alertaTiempoActiva) && _notasData.isNotEmpty)
+                                  const SizedBox(width: 4),
+                                if (_notasData.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: _toggleNotaCard,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF444444),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.note, size: 9, color: Colors.white),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            '${_notasData.length}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 8,
+                                              decoration: TextDecoration.none,
+                                              shadows: [],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       Positioned(
@@ -723,25 +884,29 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
                             onPointerUp: _onPointerUp,
                             child: Transform.flip(
                               flipX: _mirandoIzq,
-                              child: Image.asset(_imagenActual, width: imgW, height: imgH, cacheWidth: imgW.ceil(), cacheHeight: imgH.ceil()),
+                              child: Image.asset(
+                                _imagenActual,
+                                width: imgW,
+                                height: imgH,
+                                gaplessPlayback: true,
+                                filterQuality: FilterQuality.medium,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
   }
 
-  // --- Dialog methods (same as before) ---
+  // --- Dialog methods ---
   void _abrirOpcionCarpeta(BuildContext context) {
     final carpetas = StorageManager.instance.carpetas;
     if (carpetas.isEmpty) {
@@ -827,7 +992,7 @@ class _WinSnakeWidgetState extends State<WinSnakeWidget> with WidgetsBindingObse
             if (p.isNotEmpty) {
               await StorageManager.instance.setProgramas([...StorageManager.instance.programas, p]);
             }
-            Navigator.pop(ctx);
+            if (ctx.mounted) Navigator.pop(ctx);
           }, child: Text(t('agregar', _idioma))),
         ],
       ),
@@ -915,7 +1080,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
     _velocidad = cfg.velocidad;
     _opacidad = cfg.opacidad;
     _tamano = cfg.tamano;
-    _inicioAutomatico = cfg.inicioAutomatico;
+    _inicioAutomatico = WindowsServices.isAutoStartEnabled() || cfg.inicioAutomatico;
     _animal = cfg.animal;
     _autoCerrarNotas = cfg.autoCerrarNotas;
     _idioma = cfg.idioma;
@@ -924,16 +1089,21 @@ class _ConfigDialogState extends State<_ConfigDialog> {
 
   Future<void> _cargarMascotas() async {
     try {
-      final manifestData = await rootBundle.loadString('AssetManifest.json');
-      final manifest = Map<String, dynamic>.from(json.decode(manifestData));
-      final mascotas = manifest.keys
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final mascotas = manifest
+          .listAssets()
           .where((k) => k.startsWith('assets/img/'))
-          .map((k) => k.split('/')[2])
+          .map((k) => k.split('/'))
+          .where((parts) => parts.length >= 4)
+          .map((parts) => parts[2])
           .toSet()
-          .toList()..sort();
-      if (mounted) setState(() => _mascotas = mascotas);
+          .toList()
+        ..sort();
+      if (mounted) {
+        setState(() => _mascotas = mascotas.isNotEmpty ? mascotas : ['Capybara', 'serpiente']);
+      }
     } catch (_) {
-      if (mounted) setState(() => _mascotas = ['serpiente', 'Capybara']);
+      if (mounted) setState(() => _mascotas = ['Capybara', 'serpiente']);
     }
   }
 
@@ -969,12 +1139,24 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                 child: ListView(
                   children: [
                     Text(t('velocidad', _idioma)),
-                    Slider(value: _velocidad, min: 0.3, max: 3.0, divisions: 27,
-                      label: _velocidad.toStringAsFixed(1), onChanged: (v) => setState(() => _velocidad = v)),
+                    Slider(
+                      value: _velocidad,
+                      min: 0.3,
+                      max: 3.0,
+                      divisions: 27,
+                      label: _velocidad.toStringAsFixed(1),
+                      onChanged: (v) => setState(() => _velocidad = v),
+                    ),
                     const Divider(),
                     Text(t('opacidad', _idioma)),
-                    Slider(value: _opacidad, min: 0.2, max: 1.0, divisions: 8,
-                      label: (_opacidad * 100).round().toString(), onChanged: (v) => setState(() => _opacidad = v)),
+                    Slider(
+                      value: _opacidad,
+                      min: 0.2,
+                      max: 1.0,
+                      divisions: 8,
+                      label: (_opacidad * 100).round().toString(),
+                      onChanged: (v) => setState(() => _opacidad = v),
+                    ),
                     const Divider(),
                     Text(t('tamano', _idioma)),
                     Padding(
@@ -999,7 +1181,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: SegmentedButton<String>(
-                          segments: _mascotas.map((m) => ButtonSegment(value: m, label: Text(m))).toList(),
+                          segments: _mascotas.map((m) => ButtonSegment(value: m, label: Text(t(m, _idioma)))).toList(),
                           selected: {_animal},
                           onSelectionChanged: (v) => setState(() => _animal = v.first),
                         ),
@@ -1009,11 +1191,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
                       contentPadding: EdgeInsets.zero,
                       title: Text(t('iniciar_windows', _idioma)),
                       value: _inicioAutomatico,
-                      onChanged: (v) {
-                        final val = v ?? false;
-                        setState(() => _inicioAutomatico = val);
-                        WindowsServices.setAutoStart(val);
-                      },
+                      onChanged: (v) => setState(() => _inicioAutomatico = v ?? false),
                     ),
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
@@ -1080,6 +1258,7 @@ class _ConfigDialogState extends State<_ConfigDialog> {
   }
 
   void _guardar() {
+    WindowsServices.setAutoStart(_inicioAutomatico);
     StorageManager.instance.setConfiguracion(Configuracion(
       velocidad: _velocidad,
       apariencia: 0,
@@ -1099,7 +1278,9 @@ class _ConfigDialogState extends State<_ConfigDialog> {
       widget.estado._autoCerrarNotas = _autoCerrarNotas;
       widget.estado._idioma = _idioma;
     });
+    widget.estado._precacheImages();
     widget.estado._iniciarCaminata();
+    widget.estado._actualizarPosicionVentana(forceRefresh: true);
     Navigator.pop(context);
   }
 }

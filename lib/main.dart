@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
@@ -15,7 +16,7 @@ void main() async {
   final tamano = cfg.tamano;
 
   const refW = 337.0;
-  const refH = 194.0;
+  const refH = 292.0;
   final contW = (refW * tamano + 0.5).ceilToDouble();
   final contH = (refH * tamano + 0.5).ceilToDouble();
 
@@ -34,10 +35,11 @@ void main() async {
   final posX = screenW * 0.7 - contW / 2;
   final posY = screenH - 50 - contH;
 
+  final readyCompleter = Completer<void>();
   await windowManager.waitUntilReadyToShow(
     WindowOptions(
       size: Size(contW, contH),
-      minimumSize: Size(contW, contH),
+      minimumSize: const Size(60, 60),
       center: false,
       backgroundColor: Colors.transparent,
       skipTaskbar: true,
@@ -45,12 +47,18 @@ void main() async {
       titleBarStyle: TitleBarStyle.hidden,
     ),
     () async {
-      await windowManager.setAsFrameless();
-      await windowManager.setResizable(false);
-      await windowManager.setPosition(Offset(posX, posY));
-      await windowManager.show();
+      try {
+        await windowManager.setAsFrameless();
+        await windowManager.setResizable(false);
+        await windowManager.setBounds(Rect.fromLTWH(posX, posY, contW + 1, contH));
+        await windowManager.setBounds(Rect.fromLTWH(posX, posY, contW, contH));
+        await windowManager.show();
+      } finally {
+        if (!readyCompleter.isCompleted) readyCompleter.complete();
+      }
     },
   );
+  await readyCompleter.future;
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 

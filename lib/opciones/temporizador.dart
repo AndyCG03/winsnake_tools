@@ -51,18 +51,21 @@ class TemporizadorDialog extends StatefulWidget {
 
 class _TemporizadorDialogState extends State<TemporizadorDialog> {
   int _minutos = 5;
+  static const List<int> _presets = [5, 15, 25, 45, 60];
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(t('temporizador', widget.idioma)),
+      titlePadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      title: Text(t('temporizador', widget.idioma), style: const TextStyle(fontSize: 16)),
       content: SizedBox(
-        width: 200,
+        width: 220,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(t('minutos', widget.idioma)),
-            const SizedBox(height: 8),
+            Text(t('minutos', widget.idioma), style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 6),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -80,16 +83,45 @@ class _TemporizadorDialogState extends State<TemporizadorDialog> {
                   ),
                   child: Text(
                     '$_minutos',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () {
-                    if (_minutos < 120) setState(() => _minutos++);
+                    if (_minutos < 180) setState(() => _minutos++);
                   },
                 ),
               ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: _presets.map((p) {
+                final selected = _minutos == p;
+                return GestureDetector(
+                  onTap: () => setState(() => _minutos = p),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.white10,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${p}m',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: selected ? Colors.white : Colors.white70,
+                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
           ],
         ),

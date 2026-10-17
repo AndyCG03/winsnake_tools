@@ -1,121 +1,131 @@
 # WinSnake Tools
 
-
 <p align="center">
   <img src="assets/gif/winsnake.gif" alt="WinSnake Screenshot" width="600">
 </p>
 
-Widget de escritorio para Windows con una serpiente animada que camina sobre la pantalla, siempre visible encima de otras ventanas, con menú contextual de utilidades del sistema.
+Widget de escritorio para Windows con una mascota animada (**Serpiente** o **Capibara**) que camina sobre la barra de tareas, siempre visible encima de otras ventanas, con menú contextual de utilidades del sistema.
 
 ## Estado Actual
 
 - **Versión:** 1.0.0
-- **Plataforma:** Windows (Flutter Desktop)
-- **Última actualización:** Julio 2026
+- **Plataforma:** Windows 10/11 (64-bit, Flutter Desktop)
+- **Idiomas:** Español / Inglés (`ES` / `EN`)
+- **Última actualización:** Octubre 2026
 
 ## Funcionalidades
 
 | Opción | Descripción |
 |--------|-------------|
-| **Evitar suspensión** | Evita que la PC entre en suspensión (SetThreadExecutionState) |
-| **Dormir** | La serpiente se queda quieta y duerme (animación loop con img 7/8/9) |
-| **Abrir carpeta** | Abre carpetas del sistema con Explorer |
-| **Abrir programa** | Ejecuta programas del sistema |
-| **Temporizador** | Cuenta regresiva con alerta visual |
-| **Nota rápida** | Nota post-it persistente |
-| **Configuración** | Velocidad, opacidad, auto-start, carpetas, programas |
-| **Salir** | Cierra la aplicación |
+| **Evitar suspensión** | Evita que la PC y el monitor entren en suspensión (`SetThreadExecutionState`) |
+| **Dormir** | La mascota se queda quieta y duerme (animación en bucle con sprites `7.png`, `8.png`, `9.png`) |
+| **Abrir carpeta** | Abre carpetas frecuentes del sistema con Windows Explorer |
+| **Abrir programa** | Ejecuta programas y accesos rápidos guardados (`.exe`) |
+| **Temporizador** | Cuenta regresiva (hasta 180 min) con presets rápidos (`5m`, `15m`, `25m`, `45m`, `60m`), badge en vivo, alerta visual y sonido del sistema |
+| **Nota rápida** | Notas adhesivas tipo post-it con selector de 8 colores, paginación y cierre automático opcional |
+| **Configuración** | Velocidad, opacidad, tamaño (`Pequeño` / `Normal`), mascota (`Serpiente` / `Capibara`), idioma (`ES` / `EN`), auto-inicio con Windows y gestión de rutas |
+| **Salir** | Limpia los estados de energía de Windows y cierra la aplicación |
 
-## Controles
+## Controles y Comportamiento
 
-- **Hover sobre la serpiente**: Se detiene y cambia a imagen de espera
-- **Click sobre la serpiente**: Abre menú de opciones (sin detener la caminata)
-- **Clic fuera del menú**: Cierra el menú
-
-## Comportamiento
-
-- La serpiente camina de lado a lado en la parte inferior de la pantalla, justo arriba de la barra de tareas
-- Al acercarse al borde, anticipa el giro mostrando un sprite de giro antes de rebotar
-- Al abrir el menú, la serpiente salta (img 5) a la misma altura que el resto de sprites
-- La opacidad configurable solo afecta a la serpiente, no al menú
-- La serpiente solo se detiene cuando el cursor está sobre ella o el menú está abierto
-- El área interactiva (hover/click) se ajusta exactamente al tamaño del sprite visible
+- **Hover sobre la mascota**: Se detiene y cambia al sprite de espera (`4.png`).
+- **Clic sobre la mascota**: Abre o cierra el menú de opciones.
+- **Acciones espontáneas**: Mientras camina, puede detenerse brevemente, asustarse o dar un salto espontáneo (`5.png`).
+- **Adaptación automática de pantalla**: Detecta cambios de resolución o de posición de la barra de tareas (`didChangeMetrics`) y reposiciona la mascota automáticamente.
+- **Renderizado sin parpadeo**: Precarga todos los sprites en memoria y utiliza `gaplessPlayback` con anclaje inferior para evitar recortes al iniciar o al cambiar de estado.
 
 ## Sprites
 
+Cada mascota (`assets/img/serpiente/` y `assets/img/Capybara/`) utiliza la misma convención de archivos:
+
 | Imagen | Propósito |
 |--------|-----------|
-| `assets/img/serpiente/1.png` | Frame 1 de caminar |
-| `assets/img/serpiente/2.png` | Frame 2 de caminar |
-| `assets/img/serpiente/3.png` | Frame 3 de caminar |
-| `assets/img/serpiente/4.png` | Hover/espera |
-| `assets/img/serpiente/5.png` | Salto al abrir menú |
-| `assets/img/serpiente/6.png` | Anticipo de giro |
-| `assets/img/serpiente/7.png` | Frame 1 de dormir |
-| `assets/img/serpiente/8.png` | Frame 2 de dormir |
-| `assets/img/serpiente/9.png` | Frame 3 de dormir |
+| `1.png` | Frame 1 de caminata |
+| `2.png` | Frame 2 de caminata |
+| `3.png` | Frame 3 de caminata |
+| `4.png` | Hover / espera / asustado |
+| `5.png` | Alerta de temporizador / salto espontáneo |
+| `6.png` | Anticipo de giro en los bordes |
+| `7.png` | Frame 1 de dormir |
+| `8.png` | Frame 2 de dormir |
+| `9.png` | Frame 3 de dormir |
 
-También existe un set de sprites alternativo en `assets/img/Capybara/` (misma nomenclatura).
+## Configuración y Persistencia
 
-## Configuración
+Los datos se almacenan automáticamente en `%APPDATA%\winsnake_tools\storage.json`:
+- Velocidad de movimiento (`0.3` a `3.0`)
+- Opacidad (`20%` a `100%`, aplicada únicamente a la mascota)
+- Tamaño (`0.4` pequeño / `0.5` normal)
+- Mascota activa (`serpiente` / `Capybara`)
+- Idioma (`es` / `en`)
+- Cierre automático de notas tras 5 segundos
+- Inicio automático con Windows sincronizado con el registro `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (`WinSnakeTools`)
+- Lista de carpetas, programas y notas guardadas
 
-Los datos se almacenan en `%APPDATA%/winsnake_tools/storage.json`:
-- Velocidad de movimiento
-- Opacidad (solo para la serpiente)
-- Inicio automático con Windows (registro HKCU\Run)
-- Lista de carpetas guardadas
-- Lista de programas guardados
-- Estado de evitar suspensión
-
-## Requisitos del Sistema
+## Requisitos de Desarrollo
 
 - **SO:** Windows 10+ (64-bit)
-- **Flutter SDK:** 3.38.6+
+- **Flutter SDK:** 3.38+
 - **Dart SDK:** 3.10.7+
-- **Dependencias:** window_manager 0.3.9, screen_retriever 0.1.9, win32 5.15.0
+- **Dependencias:** `window_manager: ^0.3.9`, `screen_retriever: ^0.1.9`, `win32: ^5.13.0`, `ffi`
 
-## Compilación
+## Compilación y Pruebas
 
 ```bash
-flutter pub get --offline
-flutter build windows --debug
+# Instalar dependencias
+flutter pub get
+
+# Analizar código y ejecutar pruebas
+flutter analyze
+flutter test
+
+# Compilar versión Release para Windows
+flutter build windows --release
 ```
 
-El ejecutable se genera en `build\windows\x64\runner\Debug\winsnake_tools.exe`.
+El ejecutable optimizado se genera en `build\windows\x64\runner\Release\winsnake_tools.exe`.
 
-## Instalación
+## Crear Instalador (Inno Setup)
 
-1. Compila el proyecto o descarga el instalador desde [Releases](https://github.com/AndyCG03/winsnake_tools/releases)
-2. Ejecuta `winsnake_tools_setup.exe`
-3. La serpiente aparecerá en la pantalla lista para usar
+Con [Inno Setup 6](https://jrsoftware.org/isdl.php) instalado:
+
+```powershell
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\setup.iss"
+```
+
+El instalador se genera en `installer\output\winsnake_tools_setup_v1.0.0.exe`.
+
+## Instalación para Usuarios
+
+1. Descarga el instalador desde [Releases](https://github.com/AndyCG03/winsnake_tools/releases) o desde `installer/output/winsnake_tools_setup_v1.0.0.exe`.
+2. Ejecuta `winsnake_tools_setup_v1.0.0.exe`.
+3. Tu mascota aparecerá sobre la barra de tareas lista para acompañarte.
 
 ## Estructura del Proyecto
 
-```
+```text
 lib/
-├── main.dart                  # Punto de entrada, ventana frameless
-├── winsnake_widget.dart       # Widget principal, lógica de movimiento/hover/menú
-├── menu_widget.dart           # Menú contextual oscuro con switches
-├── storage.dart               # Persistencia JSON en %APPDATA%
-├── traduccion.dart            # Textos traducidos (ES/EN)
+├── main.dart                  # Punto de entrada, inicialización de ventana frameless transparente
+├── winsnake_widget.dart       # Widget principal, física de caminata, estados, notas y diálogo de config
+├── menu_widget.dart           # Menú contextual oscuro con switches de energía y sueño
+├── storage.dart               # Persistencia JSON en %APPDATA%\winsnake_tools\storage.json
+├── traduccion.dart            # Diccionario de internacionalización (ES/EN)
 ├── servicios/
-│   └── windows_services.dart  # FFI: SetThreadExecutionState, Registry, etc.
+│   └── windows_services.dart  # FFI Win32: SetThreadExecutionState, Registro HKCU\Run, MessageBeep
 └── opciones/
-    ├── temporizador.dart      # Temporizador con Stream y diálogo de minutos
-    └── nota_rapida.dart       # Widget post-it y servicio de persistencia
+    ├── temporizador.dart      # Temporizador con Stream, presets rápidos y diálogo
+    └── nota_rapida.dart       # Servicio de notas rápidas persistentes
 assets/
 ├── gif/
-│   ├── 0713.gif               # Demo animada
-│   └── Screenshot 2026-07-13 131035.png
+│   └── winsnake.gif           # Demostración animada
 └── img/
-    ├── serpiente/
-    │   ├── 1.png .. 9.png     # Sprites serpiente
-    └── Capybara/
-        ├── 1.png .. 9.png     # Sprites capybara (alternativo)
+    ├── serpiente/             # Sprites de la serpiente (1.png .. 9.png)
+    └── Capybara/              # Sprites del capibara (1.png .. 9.png)
 windows/
-└── runner/main.cpp            # Ventana inicial
+└── runner/                    # Runner nativo C++ / Win32
 installer/
-└── setup.iss                  # Script de Inno Setup para instalador
+├── setup.iss                  # Script de Inno Setup 6
+└── output/                    # Instaladores compilados (.exe)
 ```
 
 ## Licencia
@@ -127,3 +137,4 @@ Se concede permiso, libre de cargos, a cualquier persona que obtenga una copia d
 El aviso de copyright anterior y este aviso de permiso se incluirán en todas las copias o partes sustanciales del Software.
 
 EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O IMPLÍCITA.
+
